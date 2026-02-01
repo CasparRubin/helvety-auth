@@ -8,13 +8,17 @@
 /**
  * Allowed redirect URI patterns
  * Only these domains are permitted as redirect destinations
+ *
+ * Supports:
+ * - helvety.com (root domain)
+ * - Any subdomain of helvety.com (e.g., auth.helvety.com, store.helvety.com, pdf.helvety.com)
+ * - localhost with any port (development)
+ * - 127.0.0.1 with any port (development)
  */
 const ALLOWED_REDIRECT_PATTERNS = [
-  // Production domains
-  /^https:\/\/helvety\.com(\/.*)?$/,
-  /^https:\/\/auth\.helvety\.com(\/.*)?$/,
-  /^https:\/\/store\.helvety\.com(\/.*)?$/,
-  /^https:\/\/pdf\.helvety\.com(\/.*)?$/,
+  // Production: helvety.com and any subdomain (*.helvety.com)
+  // Matches: helvety.com, auth.helvety.com, store.helvety.com, new-app.helvety.com, etc.
+  /^https:\/\/([a-z0-9-]+\.)?helvety\.com(\/.*)?$/,
   // Development (localhost with any port)
   /^http:\/\/localhost(:\d+)?(\/.*)?$/,
   /^http:\/\/127\.0\.0\.1(:\d+)?(\/.*)?$/,

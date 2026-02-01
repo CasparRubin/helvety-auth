@@ -109,7 +109,8 @@ helvety-auth/
 ├── proxy.ts                         # Session refresh & cross-subdomain cookie handling
 ├── components/
 │   ├── auth-stepper.tsx             # Visual progress indicator (Email → Verify → Passkey)
-│   ├── auth-token-handler.tsx       # Client-side hash token handler
+│   ├── auth-token-handler.tsx       # Client-side hash fragment token handler (for #access_token flows)
+│   ├── encryption-setup.tsx         # Passkey + encryption setup wizard
 │   ├── navbar.tsx                   # Navigation bar with profile menu
 │   ├── app-switcher.tsx             # Cross-app navigation
 │   └── ui/                          # shadcn/ui components
@@ -123,8 +124,10 @@ helvety-auth/
 │   ├── types/
 │   │   ├── entities.ts              # Database entity types
 │   │   └── index.ts                 # Type exports
+│   ├── auth-utils.ts                # Shared auth step detection utilities
 │   ├── env-validation.ts            # Environment variable validation
 │   ├── logger.ts                    # Logging utility
+│   ├── redirect-validation.ts       # Redirect URI validation (dynamic subdomain support)
 │   └── utils.ts                     # General utilities
 ├── e2e/                             # End-to-end tests (Playwright)
 ├── emails/                          # Supabase email templates
@@ -151,13 +154,14 @@ Handles authentication callbacks from magic links and OAuth flows. After success
 - `code` - PKCE authorization code
 - `token_hash` - Email OTP token hash
 - `type` - OTP type (magiclink, signup, recovery, invite, email_change)
-- `redirect_uri` - Where to redirect after authentication
+- `redirect_uri` - Where to redirect after authentication (validated against allowlist)
 
 **Behavior:**
 
-- Verifies the magic link token
+- Verifies the magic link token (via code exchange or OTP verification)
 - Checks if user has a passkey and encryption configured
 - Redirects to `/login?step=encryption-setup` (new users or users without encryption) or `/login?step=passkey-signin` (existing users with encryption)
+- **Always preserves `redirect_uri`** through the entire auth flow, including when handling hash fragment authentication (where tokens arrive as `#access_token=...` instead of query params)
 
 ### GET `/logout`
 
@@ -285,6 +289,18 @@ Copy the HTML files from the `emails/` directory to your Supabase project's emai
 - **Passkey Verification** - Strict origin and RP ID validation
 - **Session Cookies** - Shared across subdomains via `.helvety.com` domain
 - **Counter Tracking** - Prevents passkey replay attacks
+- **Redirect URI Validation** - All redirect URIs are validated against a strict allowlist to prevent open redirect attacks
+
+### Redirect URI Validation
+
+The auth service validates all `redirect_uri` parameters to prevent open redirect vulnerabilities. Allowed destinations:
+
+- `https://helvety.com` and any path
+- `https://*.helvety.com` - Any subdomain (dynamically supports future apps)
+- `http://localhost:*` - Any port (development only)
+- `http://127.0.0.1:*` - Any port (development only)
+
+Invalid redirect URIs are rejected, and the user is redirected to `helvety.com` by default.
 
 ### End-to-End Encryption Setup
 

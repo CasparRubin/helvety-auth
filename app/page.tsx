@@ -1,24 +1,31 @@
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { getSafeRedirectUri } from "@/lib/redirect-validation";
 
 /**
+ * Root page - redirects to login with any redirect_uri preserved
  *
+ * The login page handles all authentication logic including:
+ * - Checking if user is authenticated
+ * - Checking passkey/encryption status
+ * - Redirecting to appropriate step or final destination
  */
-export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirect_uri?: string }>;
+}) {
+  const params = await searchParams;
+  const rawRedirectUri = params.redirect_uri;
 
-  if (user) {
-    // Authenticated users go to main site in production
-    if (process.env.NODE_ENV === "production") {
-      redirect("https://helvety.com");
-    }
-    // In development, authenticated users go to login page (which will show logged-in state)
-  }
+  // Validate redirect URI against allowlist
+  const safeRedirectUri = getSafeRedirectUri(rawRedirectUri, null);
 
-  // All users (authenticated in dev, unauthenticated everywhere) go to login
-  redirect("/login");
+  // Build login URL with redirect_uri if valid
+  const loginUrl = safeRedirectUri
+    ? `/login?redirect_uri=${encodeURIComponent(safeRedirectUri)}`
+    : "/login";
+
+  // Redirect to login page - it handles all auth logic
+  redirect(loginUrl);
 }

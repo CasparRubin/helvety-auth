@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
+import { getRequiredAuthStep, buildLoginUrl } from "@/lib/auth-utils";
 import { logger } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/client";
 
@@ -13,6 +14,9 @@ import { createClient } from "@/lib/supabase/client";
  * Supabase redirects to a page other than /auth/callback. Hash fragments
  * (#access_token=...) are not sent to the server, so we handle them client-side.
  *
+ * After setting the session, this component checks if the user needs to complete
+ * passkey/encryption setup before redirecting to the final destination.
+ *
  * Place this component in the root layout to ensure tokens are processed
  * regardless of which page the user lands on.
  */
@@ -20,10 +24,16 @@ export function AuthTokenHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
+  const processingRef = useRef(false);
 
   useEffect(() => {
     // Handle hash fragment tokens that may arrive on any page
     if (typeof window === "undefined" || !window.location.hash) {
+      return;
+    }
+
+    // Prevent double processing
+    if (processingRef.current) {
       return;
     }
 
@@ -35,35 +45,49 @@ export function AuthTokenHandler() {
       return;
     }
 
+    processingRef.current = true;
+
+    // Get redirect_uri from query params BEFORE we do anything
+    const redirectUri = searchParams.get("redirect_uri");
+
     // Set the session from hash tokens
-    void supabase.auth
-      .setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      })
-      .then(({ error }) => {
-        // Clear hash to avoid confusion and prevent re-processing
-        window.history.replaceState(null, "", window.location.pathname);
+    void (async () => {
+      try {
+        const { error, data } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        // Clear hash but preserve query params
+        const currentUrl = new URL(window.location.href);
+        currentUrl.hash = "";
+        window.history.replaceState(null, "", currentUrl.toString());
 
         if (error) {
-          // Log error but don't refresh - this prevents potential loops
           logger.error("Failed to set session from hash tokens:", error);
+          processingRef.current = false;
           return;
         }
 
-        // Check for redirect_uri in query params
-        const redirectUri = searchParams.get("redirect_uri");
-        if (redirectUri) {
-          // Redirect to the original app
-          window.location.href = redirectUri;
-        } else if (process.env.NODE_ENV === "production") {
-          // In production, redirect to main site
-          window.location.href = "https://helvety.com";
-        } else {
-          // In development, refresh to apply the new session
-          router.refresh();
+        const user = data.user;
+        if (!user) {
+          logger.error("Session set but no user found");
+          processingRef.current = false;
+          return;
         }
-      });
+
+        // Check what auth step the user needs to complete
+        const { step } = await getRequiredAuthStep(user.id);
+
+        // Always redirect to /login with the appropriate step
+        // The login page will handle the final redirect to redirectUri after passkey flow
+        const loginUrl = buildLoginUrl(step, redirectUri);
+        window.location.href = loginUrl;
+      } catch (err) {
+        logger.error("Error processing hash tokens:", err);
+        processingRef.current = false;
+      }
+    })();
   }, [router, supabase, searchParams]);
 
   return null;

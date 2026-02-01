@@ -34,6 +34,16 @@ describe("redirect-validation", () => {
         expect(isValidRedirectUri("https://pdf.helvety.com")).toBe(true);
         expect(isValidRedirectUri("https://pdf.helvety.com/editor")).toBe(true);
       });
+
+      it("should accept any future subdomain dynamically", () => {
+        // The pattern supports any subdomain for future apps
+        expect(isValidRedirectUri("https://new-app.helvety.com")).toBe(true);
+        expect(isValidRedirectUri("https://api.helvety.com")).toBe(true);
+        expect(isValidRedirectUri("https://dashboard.helvety.com/settings")).toBe(
+          true
+        );
+        expect(isValidRedirectUri("https://my-cool-app.helvety.com")).toBe(true);
+      });
     });
 
     describe("valid development URIs", () => {

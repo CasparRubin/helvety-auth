@@ -78,6 +78,18 @@ export async function GET(request: Request) {
     return loginUrl.toString();
   };
 
+  // Helper to build error/fallback redirect URL preserving redirect_uri
+  const buildErrorRedirect = (error?: string) => {
+    const loginUrl = new URL(`${origin}/login`);
+    if (error) {
+      loginUrl.searchParams.set("error", error);
+    }
+    if (safeRedirectUri) {
+      loginUrl.searchParams.set("redirect_uri", safeRedirectUri);
+    }
+    return loginUrl.toString();
+  };
+
   // Handle PKCE flow (code exchange)
   if (code) {
     const supabase = await createClient();
@@ -89,7 +101,7 @@ export async function GET(request: Request) {
     }
 
     logger.error("Auth callback error (code exchange):", error);
-    return NextResponse.redirect(`${origin}/login?error=auth_failed`);
+    return NextResponse.redirect(buildErrorRedirect("auth_failed"));
   }
 
   // Handle token hash (email OTP verification link)
@@ -107,9 +119,12 @@ export async function GET(request: Request) {
     }
 
     logger.error("Auth callback error (token hash):", error);
-    return NextResponse.redirect(`${origin}/login?error=auth_failed`);
+    return NextResponse.redirect(buildErrorRedirect("auth_failed"));
   }
 
-  // No valid auth params
-  return NextResponse.redirect(`${origin}/login?error=missing_params`);
+  // No valid auth params (code or token_hash)
+  // This happens when Supabase uses hash fragments (#access_token=...) instead of query params
+  // The hash fragment is only visible client-side, so we redirect to /login
+  // PRESERVING the redirect_uri so AuthTokenHandler can use it after processing the hash
+  return NextResponse.redirect(buildErrorRedirect());
 }

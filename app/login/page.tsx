@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getRequiredAuthStep } from "@/lib/auth-utils";
 import { isPasskeySupported } from "@/lib/crypto/passkey";
 import { logger } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/client";
@@ -107,10 +108,24 @@ function LoginContent() {
         return;
       }
 
-      // If user is authenticated but on email step, they completed auth
-      // Redirect to destination if they have a passkey, otherwise show setup
+      // If user is authenticated but on email step, check what they need to complete
       if (user && step === "email") {
-        // Check if coming from a passkey step that was completed
+        setEmail(user.email ?? "");
+        setUserId(user.id);
+
+        // Check passkey/encryption status to determine next step
+        const { step: requiredStep } = await getRequiredAuthStep(user.id);
+
+        if (requiredStep === "encryption-setup" || requiredStep === "passkey-signin") {
+          // User needs to complete passkey flow - show appropriate step
+          setStep(requiredStep);
+          setCheckingAuth(false);
+          return;
+        }
+
+        // User has completed all auth steps (passkey + encryption)
+        // This shouldn't normally happen since passkey-signin step handles the final redirect
+        // But as a fallback, redirect to destination
         if (redirectUri) {
           window.location.href = redirectUri;
           return;
