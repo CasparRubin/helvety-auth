@@ -23,8 +23,10 @@ export async function GET(request: Request) {
   const rawRedirectUri = searchParams.get("redirect_uri");
 
   // Validate redirect URI against allowlist (prevents open redirect attacks)
-  // Returns "/" as default if the URI is invalid or not provided
-  const safeRedirectUri = getSafeRedirectUri(rawRedirectUri, "/");
+  // In production, default to helvety.com; in dev, default to /login
+  const defaultRedirect =
+    process.env.NODE_ENV === "production" ? "https://helvety.com" : "/login";
+  const safeRedirectUri = getSafeRedirectUri(rawRedirectUri, defaultRedirect);
 
   // Helper to create redirect response
   const createRedirect = (path: string) => {

@@ -82,8 +82,12 @@ function LoginContent() {
             window.history.replaceState(null, "", window.location.pathname);
             if (redirectUri) {
               window.location.href = redirectUri;
+            } else if (process.env.NODE_ENV === "production") {
+              // In production, redirect to main site
+              window.location.href = "https://helvety.com";
             } else {
-              router.push("/");
+              // In development, just clear the checking state to show logged-in UI
+              setCheckingAuth(false);
             }
             return;
           }
@@ -104,10 +108,14 @@ function LoginContent() {
       if (user) {
         if (redirectUri) {
           window.location.href = redirectUri;
-        } else {
-          router.push("/");
+          return;
+        } else if (process.env.NODE_ENV === "production") {
+          // In production, redirect to main site
+          window.location.href = "https://helvety.com";
+          return;
         }
-        return;
+        // In development with no redirect_uri, fall through to show the login page
+        // This prevents the infinite loop and lets developers test the UI
       }
 
       setCheckingAuth(false);

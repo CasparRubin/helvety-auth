@@ -44,16 +44,23 @@ export function AuthTokenHandler() {
         // Clear hash to avoid confusion and prevent re-processing
         window.history.replaceState(null, "", window.location.pathname);
 
-        if (!error) {
-          // Check for redirect_uri in query params
-          const redirectUri = searchParams.get("redirect_uri");
-          if (redirectUri) {
-            // Redirect to the original app
-            window.location.href = redirectUri;
-          } else {
-            // Refresh to apply the new session
-            router.refresh();
-          }
+        if (error) {
+          // Log error but don't refresh - this prevents potential loops
+          console.error("Failed to set session from hash tokens:", error);
+          return;
+        }
+
+        // Check for redirect_uri in query params
+        const redirectUri = searchParams.get("redirect_uri");
+        if (redirectUri) {
+          // Redirect to the original app
+          window.location.href = redirectUri;
+        } else if (process.env.NODE_ENV === "production") {
+          // In production, redirect to main site
+          window.location.href = "https://helvety.com";
+        } else {
+          // In development, refresh to apply the new session
+          router.refresh();
         }
       });
   }, [router, supabase, searchParams]);

@@ -93,7 +93,8 @@ helvety-auth/
 │   ├── logout/
 │   │   └── route.ts                 # Logout with redirect support
 │   ├── layout.tsx                   # Root layout with providers
-│   └── page.tsx                     # Redirects to /login
+│   └── page.tsx                     # Auth-aware redirect (prod→helvety.com, dev→login)
+├── middleware.ts                    # Session refresh & cross-subdomain cookie handling
 ├── components/
 │   ├── auth-stepper.tsx             # Visual progress indicator
 │   ├── auth-token-handler.tsx       # Client-side hash token handler
