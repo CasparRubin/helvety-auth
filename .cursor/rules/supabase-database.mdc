@@ -1,0 +1,27 @@
+---
+description: Supabase database schema and export location (gitignored folder)
+alwaysApply: true
+---
+
+# Supabase Database Files
+
+The database schema and export files are in `/supabase/` (gitignored, not in file index).
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `supabase/supabase.json` | Full database export (tables, functions, policies, triggers, etc.) |
+| `supabase/getSupabase.sql` | SQL query to regenerate the export |
+| `supabase/database.sql` | Human-readable schema overview |
+
+## When to Use
+
+- **Understanding the database**: Read `supabase.json` for complete schema details
+- **Finding function definitions**: Search `supabase.json` for function names
+- **Fixing Supabase advisories**: Extract function definitions from the JSON export
+- **Refreshing the export**: User runs `getSupabase.sql` in Supabase SQL Editor
+
+## Important
+
+Since this folder is gitignored, use `Get-ChildItem` or explicit path reads to access these files.

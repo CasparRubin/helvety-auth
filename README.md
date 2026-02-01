@@ -153,23 +153,6 @@ window.location.href = loginUrl;
 
 After authentication, users are redirected back to their original app with an active session (shared via `.helvety.com` cookie domain).
 
-## Environment Variables
-
-Copy `env.template` to `.env.local` and fill in the values:
-
-```bash
-# Supabase Project URL
-NEXT_PUBLIC_SUPABASE_PROJECT_URL=https://your-project-ref.supabase.co
-
-# Supabase Publishable key (anon key) - safe for client-side
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-anon-key-here
-
-# Supabase Secret key (service role) - server-side only
-SUPABASE_SECRET_KEY=your-service-role-key-here
-```
-
-Get these values from: Supabase Dashboard → Project Settings → API
-
 ## Database Schema
 
 The service uses a `user_auth_credentials` table for storing WebAuthn credentials:
@@ -189,25 +172,6 @@ CREATE TABLE user_auth_credentials (
 );
 ```
 
-## Development
-
-```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Type checking
-npm run type-check
-
-# Linting
-npm run lint
-
-# Format code
-npm run format
-```
-
 ## Security Considerations
 
 - **httpOnly Cookies** - Challenge storage uses secure httpOnly cookies
@@ -216,10 +180,16 @@ npm run format
 - **Session Cookies** - Shared across subdomains via `.helvety.com` domain
 - **Counter Tracking** - Prevents passkey replay attacks
 
-## License
+## Developer
 
-All Rights Reserved. Copyright 2026 Helvety.
+This application is developed and maintained by [Helvety](https://helvety.com), a Swiss company committed to transparency, strong security, and respect for user privacy and data protection.
 
----
+For questions or inquiries, please contact us at [contact@helvety.com](mailto:contact@helvety.com).
 
-Developed by [Helvety](https://helvety.com) | [contact@helvety.com](mailto:contact@helvety.com)
+## License & Usage
+
+This repository is public for transparency purposes only. All code is open for inspection so users can verify its behavior.
+
+**All Rights Reserved.** No license is granted. You may view the code, but you may not copy, reuse, redistribute, modify, or sell it without explicit written permission.
+
+See [LICENSE](./LICENSE) for full terms.
