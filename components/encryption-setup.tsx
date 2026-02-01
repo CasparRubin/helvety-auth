@@ -40,6 +40,9 @@ import {
 } from "@/lib/crypto/prf-key-derivation";
 import { logger } from "@/lib/logger";
 
+/**
+ *
+ */
 interface EncryptionSetupProps {
   userId: string;
   userEmail: string;

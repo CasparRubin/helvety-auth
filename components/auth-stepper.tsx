@@ -7,6 +7,9 @@ import { cn } from "@/lib/utils";
 /** Steps in the email + passkey authentication flow */
 export type AuthStep = "email" | "verify" | "passkey";
 
+/**
+ *
+ */
 interface StepConfig {
   id: AuthStep;
   label: string;
@@ -19,6 +22,9 @@ const STEPS: StepConfig[] = [
   { id: "passkey", label: "Passkey" },
 ];
 
+/**
+ *
+ */
 interface AuthStepperProps {
   /** The current step in the flow */
   currentStep: AuthStep;

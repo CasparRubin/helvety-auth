@@ -156,8 +156,8 @@ Handles authentication callbacks from magic links and OAuth flows. After success
 **Behavior:**
 
 - Verifies the magic link token
-- Checks if user has a passkey registered
-- Redirects to `/login?step=passkey-setup` (new users) or `/login?step=passkey-signin` (existing users)
+- Checks if user has a passkey and encryption configured
+- Redirects to `/login?step=encryption-setup` (new users or users without encryption) or `/login?step=passkey-signin` (existing users with encryption)
 
 ### GET `/logout`
 
@@ -175,12 +175,13 @@ Other Helvety apps redirect to auth.helvety.com for authentication:
 
 ```typescript
 // In store.helvety.com or pdf.helvety.com
-import { getLoginUrl } from "@/lib/auth-redirect";
+// Each app has its own lib/auth-redirect.ts with helper functions
 
-// Redirect unauthenticated users
-const loginUrl = getLoginUrl(window.location.href);
+// Example redirect for unauthenticated users
+const currentUrl = window.location.href;
+const loginUrl = `https://auth.helvety.com/login?redirect_uri=${encodeURIComponent(currentUrl)}`;
 window.location.href = loginUrl;
-// → https://auth.helvety.com/login?redirect_uri=https://store.helvety.com/dashboard
+// → https://auth.helvety.com/login?redirect_uri=https://store.helvety.com/account
 ```
 
 After authentication, users are redirected back to their original app with an active session (shared via `.helvety.com` cookie domain).
@@ -203,6 +204,78 @@ CREATE TABLE user_auth_credentials (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18.17 or later
+- npm 9 or later
+- A Supabase project (for authentication and database)
+
+### Installation
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/helvety/helvety-auth.git
+   cd helvety-auth
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+3. Set up environment variables (see [Environment Variables](#environment-variables) below)
+
+4. Run the development server:
+
+   ```bash
+   npm run dev
+   ```
+
+5. Open [http://localhost:3001](http://localhost:3001) in your browser (note: runs on port 3001 by default)
+
+## Environment Variables
+
+Copy `env.template` to `.env.local` and fill in the required values:
+
+```bash
+cp env.template .env.local
+```
+
+### Required Variables
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_SUPABASE_PROJECT_URL` | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/publishable key (safe for browser) |
+| `SUPABASE_SECRET_KEY` | Supabase service role key (server-only, never expose to client) |
+
+See `env.template` for the full list with descriptions.
+
+## Configuration
+
+### Supabase Setup
+
+1. Create a new project at [supabase.com](https://supabase.com)
+2. Run the database migrations to create the `user_auth_credentials` table (see [Database Schema](#database-schema))
+3. Configure Row Level Security (RLS) policies for the credentials table
+4. Set up email templates in the Supabase dashboard (see `emails/` directory for templates)
+5. Configure the site URL to `https://auth.helvety.com` (or `http://localhost:3001` for development)
+
+### Email Templates
+
+Copy the HTML files from the `emails/` directory to your Supabase project's email templates:
+
+- `confirmSignUp.html` - Email confirmation
+- `magicLink.html` - Magic link sign-in
+- `resetPassword.html` - Password/passkey recovery
+- `changeEmailAddress.html` - Email change confirmation
+- `inviteUser.html` - User invitation
+- `reauthentication.html` - Re-authentication verification
 
 ## Security Considerations
 
@@ -230,6 +303,29 @@ Browser requirements for encryption:
 - Firefox 139+ (desktop only)
 
 **Note:** Firefox for Android does not support the PRF extension.
+
+## Testing
+
+This project uses Vitest for unit tests and Playwright for end-to-end tests.
+
+```bash
+# Run unit tests in watch mode
+npm run test
+
+# Run unit tests once
+npm run test:run
+
+# Run with coverage
+npm run test:coverage
+
+# Run E2E tests
+npm run test:e2e
+
+# Run E2E tests with UI
+npm run test:e2e:ui
+```
+
+See `__tests__/README.md` for testing patterns and conventions.
 
 ## Developer
 

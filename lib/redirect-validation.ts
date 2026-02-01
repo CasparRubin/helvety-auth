@@ -64,3 +64,44 @@ export function getSafeRedirectUri(
   }
   return defaultUri ?? null;
 }
+
+/**
+ * Validates that a path is a safe relative path (for internal redirects)
+ *
+ * @param path - The path to validate
+ * @returns true if the path is a safe relative path
+ */
+export function isValidRelativePath(path: string | null | undefined): boolean {
+  if (!path) {
+    return false;
+  }
+
+  // Must start with / but not // (protocol-relative URL)
+  if (!path.startsWith("/") || path.startsWith("//")) {
+    return false;
+  }
+
+  // Must not contain protocol indicators
+  if (path.includes(":")) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Gets a safe relative path, returning default if invalid
+ *
+ * @param path - The path to validate
+ * @param defaultPath - Default path to return if validation fails
+ * @returns The validated path or the default path
+ */
+export function getSafeRelativePath(
+  path: string | null | undefined,
+  defaultPath: string = "/"
+): string {
+  if (isValidRelativePath(path)) {
+    return path!;
+  }
+  return defaultPath;
+}

@@ -129,7 +129,7 @@ describe("PRF Key Derivation", () => {
 
       expect(mockDeriveKey).toHaveBeenCalledTimes(1);
       const [algorithm, keyMaterial, derivedAlgorithm, extractable, usages] =
-        mockDeriveKey.mock.calls[0];
+        mockDeriveKey.mock.calls[0]!;
 
       expect(algorithm.name).toBe("HKDF");
       expect(algorithm.hash).toBe("SHA-256");

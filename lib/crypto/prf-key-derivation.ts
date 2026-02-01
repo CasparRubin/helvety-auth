@@ -188,6 +188,7 @@ export interface PRFSupportInfo {
   browserInfo?: string;
 }
 
+/** Get detailed PRF support information for UI display */
 export async function getPRFSupportInfo(): Promise<PRFSupportInfo> {
   if (typeof window === "undefined") {
     return { supported: false, reason: "Not in browser environment" };

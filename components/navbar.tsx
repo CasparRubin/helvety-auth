@@ -28,6 +28,9 @@ import { createClient } from "@/lib/supabase/client";
 
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
+/**
+ *
+ */
 export function Navbar() {
   const supabase = createClient();
   const [user, setUser] = useState<SupabaseUser | null>(null);

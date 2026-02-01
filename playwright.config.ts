@@ -1,5 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
 
+/**
+ * Playwright E2E Test Configuration
+ *
+ * Browser Strategy:
+ * - CI: Runs only Chromium for speed (via --project=chromium flag)
+ * - Local: All browsers available for comprehensive testing
+ *
+ * Run locally: npm run test:e2e (all browsers)
+ * Run single browser: npm run test:e2e -- --project=chromium
+ */
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,

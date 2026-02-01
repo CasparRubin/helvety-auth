@@ -13,8 +13,14 @@ export default defineConfig({
     exclude: ["node_modules", ".next", "e2e"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "html"],
+      reporter: ["text", "html", "lcov"],
       exclude: ["node_modules", ".next", "e2e", "**/*.d.ts", "**/*.config.*"],
+      thresholds: {
+        lines: 70,
+        functions: 70,
+        branches: 60,
+        statements: 70,
+      },
     },
   },
   resolve: {

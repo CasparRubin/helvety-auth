@@ -30,8 +30,8 @@ jobs:
       - name: Run linter
         run: npm run lint
 
-      - name: Run unit tests
-        run: npm run test:run
+      - name: Run unit tests with coverage
+        run: npm run test:coverage
 
   e2e-tests:
     name: E2E Tests
@@ -64,7 +64,6 @@ jobs:
 
       - name: Run E2E tests
         run: npm run test:e2e -- --project=chromium
-        continue-on-error: true
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4

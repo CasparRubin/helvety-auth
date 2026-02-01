@@ -88,6 +88,7 @@ const envSchema = z.object({
     }),
 });
 
+/** Validated environment variable types */
 type Env = z.infer<typeof envSchema>;
 
 let validatedEnv: Env | null = null;

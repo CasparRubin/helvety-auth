@@ -1,5 +1,8 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import importPlugin from "eslint-plugin-import";
+import jsdoc from "eslint-plugin-jsdoc";
+import testingLibrary from "eslint-plugin-testing-library";
+import vitest from "@vitest/eslint-plugin";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import tseslint from "typescript-eslint";
@@ -21,6 +24,7 @@ const eslintConfig = defineConfig([
     plugins: {
       "@typescript-eslint": tseslint.plugin,
       import: importPlugin,
+      jsdoc,
     },
     settings: {
       "import/resolver": {
@@ -108,6 +112,59 @@ const eslintConfig = defineConfig([
       "prefer-arrow-callback": "error",
       "prefer-template": "warn",
       "no-console": ["warn", { allow: ["warn", "error"] }],
+
+      // JSDoc rules - TypeScript provides type info, so we only require descriptions
+      "jsdoc/require-jsdoc": [
+        "warn",
+        {
+          require: {
+            FunctionDeclaration: true,
+            MethodDefinition: false,
+            ClassDeclaration: true,
+          },
+          contexts: ["TSInterfaceDeclaration", "TSTypeAliasDeclaration"],
+          checkConstructors: false,
+        },
+      ],
+      "jsdoc/require-param": "off", // TypeScript provides param types
+      "jsdoc/require-returns": "off", // TypeScript provides return types
+      "jsdoc/require-param-type": "off",
+      "jsdoc/require-returns-type": "off",
+      "jsdoc/check-param-names": "off", // TypeScript validates param names
+      "jsdoc/check-tag-names": "warn",
+    },
+  },
+  // Unit test rules (Vitest + Testing Library)
+  {
+    files: ["**/*.test.{ts,tsx}", "__tests__/**/*.{ts,tsx}"],
+    plugins: {
+      "testing-library": testingLibrary,
+      vitest,
+    },
+    rules: {
+      "testing-library/prefer-screen-queries": "error",
+      "testing-library/no-unnecessary-act": "error",
+      "testing-library/no-wait-for-multiple-assertions": "warn",
+      "vitest/expect-expect": "error",
+      "vitest/no-identical-title": "error",
+      "vitest/no-disabled-tests": "warn",
+      "vitest/valid-expect": "error",
+      // Relax JSDoc for test files
+      "jsdoc/require-jsdoc": "off",
+      "jsdoc/require-param": "off",
+      "jsdoc/require-returns": "off",
+      "jsdoc/check-param-names": "off",
+    },
+  },
+  // E2E test rules (Playwright - no testing-library)
+  {
+    files: ["e2e/**/*.{ts,tsx}"],
+    rules: {
+      // Relax JSDoc for e2e test files
+      "jsdoc/require-jsdoc": "off",
+      "jsdoc/require-param": "off",
+      "jsdoc/require-returns": "off",
+      "jsdoc/check-param-names": "off",
     },
   },
   globalIgnores([

@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
+import { logger } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -46,7 +47,7 @@ export function AuthTokenHandler() {
 
         if (error) {
           // Log error but don't refresh - this prevents potential loops
-          console.error("Failed to set session from hash tokens:", error);
+          logger.error("Failed to set session from hash tokens:", error);
           return;
         }
 

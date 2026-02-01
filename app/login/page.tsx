@@ -32,6 +32,9 @@ import { isPasskeySupported } from "@/lib/crypto/passkey";
 import { logger } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/client";
 
+/**
+ *
+ */
 type LoginStep =
   | "email" // Enter email
   | "email-sent" // Magic link sent, check your email
@@ -40,6 +43,9 @@ type LoginStep =
   | "passkey-verify" // Verify newly created passkey
   | "encryption-setup"; // Set up encryption with passkey
 
+/**
+ *
+ */
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -615,6 +621,9 @@ function LoginContent() {
 }
 
 // Wrap in Suspense because useSearchParams requires it
+/**
+ *
+ */
 export default function LoginPage() {
   return (
     <Suspense

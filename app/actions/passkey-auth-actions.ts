@@ -27,18 +27,21 @@ import type {
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
   AuthenticatorTransportFuture,
+  AuthenticationExtensionsClientInputs,
 } from "@simplewebauthn/server";
 
 // =============================================================================
 // TYPES
 // =============================================================================
 
+/** Response type for passkey-related server actions */
 export type PasskeyActionResponse<T = void> = {
   success: boolean;
   data?: T;
   error?: string;
 };
 
+/** Challenge data stored in cookie for WebAuthn ceremony verification */
 type StoredChallenge = {
   challenge: string;
   userId?: string; // For authenticated user flows
@@ -658,6 +661,9 @@ export async function verifyPasskeyAuthentication(
     }
 
     // Update the counter to prevent replay attacks
+    // Security: Counter update is CRITICAL - if it fails, we must fail the
+    // authentication to prevent replay attacks where the same authentication
+    // response is used multiple times.
     const { error: updateError } = await adminClient
       .from("user_auth_credentials")
       .update({
@@ -667,8 +673,11 @@ export async function verifyPasskeyAuthentication(
       .eq("credential_id", response.id);
 
     if (updateError) {
-      logger.error("Error updating counter:", updateError);
-      // Continue anyway - counter update is not critical for auth
+      logger.error("Error updating counter - failing auth for security:", updateError);
+      return {
+        success: false,
+        error: "Authentication failed - please try again",
+      };
     }
 
     // Get user email for generating magic link

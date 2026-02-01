@@ -25,10 +25,16 @@ const apps = [
   { name: "Auth", href: "https://auth.helvety.com", icon: KeyRound },
 ];
 
+/**
+ *
+ */
 interface AppSwitcherProps {
   currentApp?: string;
 }
 
+/**
+ *
+ */
 export function AppSwitcher({ currentApp }: AppSwitcherProps) {
   const [open, setOpen] = useState(false);
 

@@ -14,6 +14,9 @@ export type AuthStep =
   | "verify_encryption"
   | "sign_in";
 
+/**
+ *
+ */
 interface StepConfig {
   id: AuthStep;
   label: string;
@@ -54,6 +57,9 @@ export function getSetupStep(
   }
 }
 
+/**
+ *
+ */
 interface AuthStepperProps {
   flowType: AuthFlowType;
   currentStep: AuthStep;
