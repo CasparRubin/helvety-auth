@@ -1,19 +1,32 @@
 "use client";
 
 import {
+  LogIn,
   LogOut,
   User,
   Building2,
   Scale,
   FileText,
   Settings,
+  Github,
+  Info,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { AppSwitcher } from "@/components/app-switcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Popover,
   PopoverContent,
@@ -23,18 +36,35 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { VERSION } from "@/lib/config/version";
 import { createClient } from "@/lib/supabase/client";
 
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 /**
+ * Main navigation bar component for helvety-auth
  *
+ * Features:
+ * - App switcher for navigating between Helvety ecosystem apps
+ * - Logo and branding
+ * - Navigation links (Impressum, Privacy, Terms)
+ * - About dialog with version info
+ * - GitHub link
+ * - Theme switcher (dark/light mode)
+ * - Login button linking to /login (shown when user is not authenticated)
+ * - Profile menu with account settings and logout (shown when authenticated)
  */
 export function Navbar() {
   const supabase = createClient();
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const getUser = async () => {
@@ -42,6 +72,7 @@ export function Navbar() {
         data: { user },
       } = await supabase.auth.getUser();
       setUser(user);
+      setIsLoading(false);
     };
     void getUser();
 
@@ -116,7 +147,71 @@ export function Navbar() {
               ))}
             </div>
 
+            {/* About button */}
+            <Dialog>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-9 w-9">
+                      <Info className="h-4 w-4" />
+                    </Button>
+                  </DialogTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>About</p>
+                </TooltipContent>
+              </Tooltip>
+              <DialogContent>
+                <DialogHeader className="pr-8">
+                  <DialogTitle>About</DialogTitle>
+                  <DialogDescription className="pt-2">
+                    Centralized authentication service for the Helvety ecosystem.
+                  </DialogDescription>
+                </DialogHeader>
+                <>
+                  <div className="border-t" />
+                  <p className="text-muted-foreground text-xs">
+                    {VERSION || "Unknown build time"}
+                  </p>
+                </>
+                <DialogClose asChild>
+                  <Button variant="outline" className="w-full">
+                    Close
+                  </Button>
+                </DialogClose>
+              </DialogContent>
+            </Dialog>
+
+            {/* GitHub icon - always visible */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <a
+                  href="https://github.com/CasparRubin/helvety-auth"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="View source code on GitHub"
+                >
+                  <Button variant="ghost" size="icon" className="h-9 w-9">
+                    <Github className="h-4 w-4" />
+                  </Button>
+                </a>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>View source code on GitHub</p>
+              </TooltipContent>
+            </Tooltip>
+
             <ThemeSwitcher />
+
+            {/* Login button - only show when not authenticated */}
+            {!user && !isLoading && (
+              <Button variant="default" size="sm" asChild>
+                <Link href="/login">
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Sign in
+                </Link>
+              </Button>
+            )}
 
             {/* Profile menu - only show when authenticated */}
             {user && (

@@ -25,15 +25,15 @@ const apps = [
   { name: "Auth", href: "https://auth.helvety.com", icon: KeyRound },
 ];
 
-/**
- *
- */
+/** Props for the AppSwitcher component */
 interface AppSwitcherProps {
+  /** The name of the currently active app to highlight */
   currentApp?: string;
 }
 
 /**
- *
+ * App switcher component for navigating between Helvety ecosystem apps
+ * Displays a grid of available apps in a slide-out sheet
  */
 export function AppSwitcher({ currentApp }: AppSwitcherProps) {
   const [open, setOpen] = useState(false);
