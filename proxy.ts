@@ -2,14 +2,14 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Middleware to refresh Supabase auth sessions on every request.
+ * Proxy to refresh Supabase auth sessions on every request.
  *
  * This ensures:
  * 1. Sessions are refreshed before they expire
  * 2. Cookies are properly set with the correct domain for cross-subdomain SSO
  * 3. Server components always have access to fresh session data
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
