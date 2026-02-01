@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 
+import {
+  checkUserPasskeyStatus,
+  hasEncryptionSetup,
+} from "@/app/actions/passkey-auth-actions";
 import { logger } from "@/lib/logger";
 import { getSafeRedirectUri } from "@/lib/redirect-validation";
 import { createClient } from "@/lib/supabase/server";
@@ -12,6 +16,11 @@ import type { EmailOtpType } from "@supabase/supabase-js";
  * This route is called when users click magic links or complete OAuth flows.
  * It exchanges the auth code for a session and redirects to the appropriate destination.
  *
+ * After successful auth, checks if user has passkey and encryption:
+ * - If no passkey: redirects to login with step=passkey-setup
+ * - If has passkey but no encryption: redirects to login with step=encryption-setup
+ * - If has passkey and encryption: redirects to login with step=passkey-signin
+ *
  * Supports redirect_uri query param for cross-app SSO flows.
  * Redirect URIs are validated against an allowlist to prevent open redirects.
  */
@@ -23,19 +32,50 @@ export async function GET(request: Request) {
   const rawRedirectUri = searchParams.get("redirect_uri");
 
   // Validate redirect URI against allowlist (prevents open redirect attacks)
-  // In production, default to helvety.com; in dev, default to /login
-  const defaultRedirect =
-    process.env.NODE_ENV === "production" ? "https://helvety.com" : "/login";
-  const safeRedirectUri = getSafeRedirectUri(rawRedirectUri, defaultRedirect);
+  const safeRedirectUri = getSafeRedirectUri(rawRedirectUri, null);
 
-  // Helper to create redirect response
-  const createRedirect = (path: string) => {
-    // If path starts with http, it's an absolute URL (validated external redirect)
-    if (path.startsWith("http")) {
-      return NextResponse.redirect(path);
+  // Helper to build login redirect with passkey step
+  const buildPasskeyRedirect = async (
+    supabase: Awaited<ReturnType<typeof createClient>>
+  ) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return `${origin}/login?error=auth_failed`;
     }
-    // Otherwise, it's a relative path - resolve against origin
-    return NextResponse.redirect(new URL(path, origin));
+
+    // Check if user has a passkey registered
+    const passkeyResult = await checkUserPasskeyStatus(user.id);
+    const hasPasskey = passkeyResult.success && passkeyResult.data?.hasPasskey;
+
+    // Check if user has encryption setup (PRF params)
+    const encryptionResult = await hasEncryptionSetup();
+    const hasEncryption = encryptionResult.success && encryptionResult.data;
+
+    // Determine the appropriate step
+    let step: string;
+    if (!hasPasskey) {
+      // New user - needs full passkey + encryption setup
+      step = "encryption-setup";
+    } else if (!hasEncryption) {
+      // Has passkey but no encryption - needs encryption setup only
+      step = "encryption-setup";
+    } else {
+      // Has everything - just sign in
+      step = "passkey-signin";
+    }
+
+    // Build redirect URL with step parameter
+    const loginUrl = new URL(`${origin}/login`);
+    loginUrl.searchParams.set("step", step);
+
+    if (safeRedirectUri) {
+      loginUrl.searchParams.set("redirect_uri", safeRedirectUri);
+    }
+
+    return loginUrl.toString();
   };
 
   // Handle PKCE flow (code exchange)
@@ -44,7 +84,8 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      return createRedirect(safeRedirectUri);
+      const redirectUrl = await buildPasskeyRedirect(supabase);
+      return NextResponse.redirect(redirectUrl);
     }
 
     logger.error("Auth callback error (code exchange):", error);
@@ -61,7 +102,8 @@ export async function GET(request: Request) {
     });
 
     if (!error) {
-      return createRedirect(safeRedirectUri);
+      const redirectUrl = await buildPasskeyRedirect(supabase);
+      return NextResponse.redirect(redirectUrl);
     }
 
     logger.error("Auth callback error (token hash):", error);

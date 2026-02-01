@@ -1,14 +1,65 @@
 "use client";
 
-import { Building2, Scale, FileText } from "lucide-react";
+import {
+  LogOut,
+  User,
+  Building2,
+  Scale,
+  FileText,
+  Settings,
+} from "lucide-react";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 
 import { AppSwitcher } from "@/components/app-switcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { createClient } from "@/lib/supabase/client";
+
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export function Navbar() {
+  const supabase = createClient();
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    void getUser();
+
+    // Listen for auth state changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase.auth]);
+
+  const handleLogout = () => {
+    // Get current origin for redirect after logout
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    window.location.href = `/logout?redirect_uri=${encodeURIComponent(origin)}`;
+  };
+
   const navLinks = [
     {
       href: "https://helvety.com/impressum",
@@ -63,6 +114,60 @@ export function Navbar() {
             </div>
 
             <ThemeSwitcher />
+
+            {/* Profile menu - only show when authenticated */}
+            {user && (
+              <Popover open={profileOpen} onOpenChange={setProfileOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <User className="h-5 w-5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80">
+                  <PopoverHeader>
+                    <div className="flex items-center gap-3">
+                      <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-full">
+                        <User className="text-primary h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <PopoverTitle>Account</PopoverTitle>
+                        <PopoverDescription className="truncate">
+                          {user.email ?? "Signed in"}
+                        </PopoverDescription>
+                      </div>
+                    </div>
+                  </PopoverHeader>
+                  <Separator />
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      asChild
+                    >
+                      <a
+                        href="https://store.helvety.com/account"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Settings className="h-4 w-4" />
+                        Account
+                      </a>
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="w-full justify-start"
+                      onClick={() => {
+                        setProfileOpen(false);
+                        handleLogout();
+                      }}
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign out
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
         </div>
       </nav>

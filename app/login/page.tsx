@@ -4,18 +4,20 @@ import {
   startRegistration,
   startAuthentication,
 } from "@simplewebauthn/browser";
-import { Loader2, ArrowLeft, UserPlus, LogIn } from "lucide-react";
+import { Loader2, ArrowLeft, Mail, KeyRound, CheckCircle2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense, useCallback } from "react";
 
 import {
-  registerNewUser,
-  completeUserRegistration,
+  sendMagicLink,
+  generatePasskeyRegistrationOptions,
+  verifyPasskeyRegistration,
   generatePasskeyAuthOptions,
   verifyPasskeyAuthentication,
 } from "@/app/actions/passkey-auth-actions";
 import { AuthStepper, type AuthStep } from "@/components/auth-stepper";
+import { EncryptionSetup } from "@/components/encryption-setup";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,107 +26,129 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { isPasskeySupported } from "@/lib/crypto/passkey";
 import { logger } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/client";
 
-type LoginStep = "choose" | "registering" | "authenticating";
+type LoginStep =
+  | "email" // Enter email
+  | "email-sent" // Magic link sent, check your email
+  | "passkey-setup" // Set up new passkey (deprecated, now uses encryption-setup)
+  | "passkey-signin" // Sign in with existing passkey
+  | "passkey-verify" // Verify newly created passkey
+  | "encryption-setup"; // Set up encryption with passkey
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
-  const [error, setError] = useState("");
+
   const [isLoading, setIsLoading] = useState(false);
-  const [step, setStep] = useState<LoginStep>("choose");
-  const [passkeySupported, setPasskeySupported] = useState(false);
+  const [email, setEmail] = useState("");
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [passkeySupported, setPasskeySupported] = useState(false);
 
-  // Get redirect_uri from query params
+  // Get parameters from URL
   const redirectUri = searchParams.get("redirect_uri");
+  const stepParam = searchParams.get("step") as LoginStep | null;
+  const authError = searchParams.get("error");
 
-  // Check for auth errors from callback
-  useEffect(() => {
-    const authError = searchParams.get("error");
-    const hasHashTokens =
-      typeof window !== "undefined" &&
-      window.location.hash.includes("access_token");
+  // Compute initial step from URL or default to email
+  const initialStep: LoginStep =
+    stepParam === "passkey-setup" ||
+    stepParam === "passkey-signin" ||
+    stepParam === "encryption-setup"
+      ? stepParam
+      : "email";
 
-    if (authError === "auth_failed") {
-      setError("Authentication failed. Please try again.");
-    } else if (authError === "missing_params" && !hasHashTokens) {
-      setError("Invalid authentication link.");
-    }
-  }, [searchParams]);
+  // Compute initial error from URL
+  const initialError =
+    authError === "auth_failed"
+      ? "Authentication failed. Please try again."
+      : authError === "missing_params"
+        ? "Invalid authentication link."
+        : "";
 
-  // Check if user is already logged in, handle hash tokens, and check passkey support
+  const [step, setStep] = useState<LoginStep>(initialStep);
+  const [error, setError] = useState(initialError);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Initialize: check passkey support and existing session
   useEffect(() => {
     const init = async () => {
       // Check WebAuthn support
       const supported = isPasskeySupported();
       setPasskeySupported(supported);
 
-      // Handle hash fragment tokens (from passkey auth via generateLink)
-      if (typeof window !== "undefined" && window.location.hash) {
-        const hashParams = new URLSearchParams(
-          window.location.hash.substring(1)
-        );
-        const accessToken = hashParams.get("access_token");
-        const refreshToken = hashParams.get("refresh_token");
-
-        if (accessToken && refreshToken) {
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-
-          if (!sessionError) {
-            window.history.replaceState(null, "", window.location.pathname);
-            if (redirectUri) {
-              window.location.href = redirectUri;
-            } else if (process.env.NODE_ENV === "production") {
-              // In production, redirect to main site
-              window.location.href = "https://helvety.com";
-            } else {
-              // In development, just clear the checking state to show logged-in UI
-              setCheckingAuth(false);
-            }
-            return;
-          }
-
-          logger.error("Failed to set session from hash:", sessionError);
-          window.history.replaceState(
-            null,
-            "",
-            window.location.pathname + window.location.search
-          );
-        }
-      }
-
-      // Check if user is already logged in
+      // Get current user if any
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (user) {
+
+      // If user is authenticated and we're on passkey or encryption step, stay on that step
+      if (
+        user &&
+        (step === "passkey-setup" ||
+          step === "passkey-signin" ||
+          step === "passkey-verify" ||
+          step === "encryption-setup")
+      ) {
+        setEmail(user.email ?? "");
+        setUserId(user.id);
+        setCheckingAuth(false);
+        return;
+      }
+
+      // If user is authenticated but on email step, they completed auth
+      // Redirect to destination if they have a passkey, otherwise show setup
+      if (user && step === "email") {
+        // Check if coming from a passkey step that was completed
         if (redirectUri) {
           window.location.href = redirectUri;
           return;
         } else if (process.env.NODE_ENV === "production") {
-          // In production, redirect to main site
           window.location.href = "https://helvety.com";
           return;
         }
-        // In development with no redirect_uri, fall through to show the login page
-        // This prevents the infinite loop and lets developers test the UI
       }
 
       setCheckingAuth(false);
     };
     void init();
-  }, [router, supabase, redirectUri]);
+  }, [supabase, step, redirectUri]);
 
-  // Handle new user registration with passkey
-  const handleCreateAccount = useCallback(async () => {
+  // Handle email submission - send magic link
+  const handleEmailSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError("");
+      setIsLoading(true);
+
+      try {
+        const result = await sendMagicLink(email, redirectUri ?? undefined);
+
+        if (!result.success) {
+          setError(result.error ?? "Failed to send verification email");
+          setIsLoading(false);
+          return;
+        }
+
+        // Move to email-sent step
+        setStep("email-sent");
+        setIsLoading(false);
+      } catch (err) {
+        logger.error("Email submission error:", err);
+        setError("An unexpected error occurred");
+        setIsLoading(false);
+      }
+    },
+    [email, redirectUri]
+  );
+
+  // Handle passkey setup (for new users)
+  const handlePasskeySetup = useCallback(async () => {
     if (!passkeySupported) {
       setError("Your browser doesn't support passkeys");
       return;
@@ -132,24 +156,19 @@ function LoginContent() {
 
     setError("");
     setIsLoading(true);
-    setStep("registering");
 
     try {
       const origin = window.location.origin;
 
-      // Step 1: Create user and get registration options
-      const optionsResult = await registerNewUser(
-        origin,
-        redirectUri ?? undefined
-      );
+      // Get registration options
+      const optionsResult = await generatePasskeyRegistrationOptions(origin);
       if (!optionsResult.success || !optionsResult.data) {
-        setError(optionsResult.error ?? "Failed to start registration");
-        setStep("choose");
+        setError(optionsResult.error ?? "Failed to start passkey setup");
         setIsLoading(false);
         return;
       }
 
-      // Step 2: Start WebAuthn registration (shows QR code for phone)
+      // Start WebAuthn registration
       let regResponse;
       try {
         regResponse = await startRegistration({
@@ -158,41 +177,39 @@ function LoginContent() {
       } catch (err) {
         if (err instanceof Error) {
           if (err.name === "NotAllowedError") {
-            setError("Registration was cancelled");
+            setError("Passkey setup was cancelled");
           } else if (err.name === "AbortError") {
-            setError("Registration timed out");
+            setError("Passkey setup timed out");
           } else {
-            setError("Failed to register passkey");
+            setError("Failed to set up passkey");
           }
         } else {
-          setError("Failed to register passkey");
+          setError("Failed to set up passkey");
         }
-        setStep("choose");
         setIsLoading(false);
         return;
       }
 
-      // Step 3: Complete registration and get session
-      const verifyResult = await completeUserRegistration(regResponse, origin);
-      if (!verifyResult.success || !verifyResult.data) {
-        setError(verifyResult.error ?? "Failed to complete registration");
-        setStep("choose");
+      // Verify registration
+      const verifyResult = await verifyPasskeyRegistration(regResponse, origin);
+      if (!verifyResult.success) {
+        setError(verifyResult.error ?? "Failed to complete passkey setup");
         setIsLoading(false);
         return;
       }
 
-      // Step 4: Redirect to auth URL to complete session creation
-      window.location.href = verifyResult.data.authUrl;
+      // Passkey created! Now require verification
+      setStep("passkey-verify");
+      setIsLoading(false);
     } catch (err) {
-      logger.error("Registration error:", err);
+      logger.error("Passkey setup error:", err);
       setError("An unexpected error occurred");
-      setStep("choose");
       setIsLoading(false);
     }
-  }, [passkeySupported, redirectUri]);
+  }, [passkeySupported]);
 
-  // Handle returning user authentication with passkey
-  const handleSignIn = useCallback(async () => {
+  // Handle passkey sign in (for existing users or verification after setup)
+  const handlePasskeySignIn = useCallback(async () => {
     if (!passkeySupported) {
       setError("Your browser doesn't support passkeys");
       return;
@@ -200,12 +217,11 @@ function LoginContent() {
 
     setError("");
     setIsLoading(true);
-    setStep("authenticating");
 
     try {
       const origin = window.location.origin;
 
-      // Step 1: Get authentication options
+      // Get authentication options
       const optionsResult = await generatePasskeyAuthOptions(
         origin,
         redirectUri ?? undefined
@@ -214,12 +230,11 @@ function LoginContent() {
         setError(
           optionsResult.error ?? "Failed to start passkey authentication"
         );
-        setStep("choose");
         setIsLoading(false);
         return;
       }
 
-      // Step 2: Start WebAuthn authentication (shows QR code for phone)
+      // Start WebAuthn authentication
       let authResponse;
       try {
         authResponse = await startAuthentication({
@@ -237,36 +252,44 @@ function LoginContent() {
         } else {
           setError("Failed to authenticate with passkey");
         }
-        setStep("choose");
         setIsLoading(false);
         return;
       }
 
-      // Step 3: Verify authentication on server
+      // Verify authentication
       const verifyResult = await verifyPasskeyAuthentication(
         authResponse,
         origin
       );
       if (!verifyResult.success || !verifyResult.data) {
         setError(verifyResult.error ?? "Authentication verification failed");
-        setStep("choose");
         setIsLoading(false);
         return;
       }
 
-      // Step 4: Redirect to the auth URL to complete session creation
+      // Redirect to auth URL to complete session creation
       window.location.href = verifyResult.data.authUrl;
     } catch (err) {
       logger.error("Passkey auth error:", err);
       setError("An unexpected error occurred");
-      setStep("choose");
       setIsLoading(false);
     }
   }, [passkeySupported, redirectUri]);
 
-  // Go back to choose step
+  // Complete auth after passkey verification
+  const handleCompleteAuth = useCallback(() => {
+    if (redirectUri) {
+      window.location.href = redirectUri;
+    } else if (process.env.NODE_ENV === "production") {
+      window.location.href = "https://helvety.com";
+    } else {
+      router.push("/");
+    }
+  }, [redirectUri, router]);
+
+  // Go back to email step
   const handleBack = () => {
-    setStep("choose");
+    setStep("email");
     setError("");
     setIsLoading(false);
   };
@@ -280,10 +303,12 @@ function LoginContent() {
     );
   }
 
-  // Determine current step for the stepper
+  // Determine current stepper step
   const currentAuthStep: AuthStep = (() => {
-    if (step === "choose") return "choose";
-    return "authenticate";
+    if (step === "email") return "email";
+    if (step === "email-sent") return "verify";
+    if (step === "encryption-setup") return "passkey";
+    return "passkey";
   })();
 
   return (
@@ -309,25 +334,127 @@ function LoginContent() {
         {/* Show stepper */}
         <AuthStepper currentStep={currentAuthStep} />
 
+        {/* Show encryption setup component for encryption-setup step */}
+        {step === "encryption-setup" && userId && (
+          <EncryptionSetup
+            userId={userId}
+            userEmail={email}
+            flowType="new_user"
+            redirectUri={redirectUri ?? undefined}
+            onComplete={() => {
+              // Redirect to destination after encryption setup
+              if (redirectUri) {
+                window.location.href = redirectUri;
+              } else if (process.env.NODE_ENV === "production") {
+                window.location.href = "https://helvety.com";
+              } else {
+                router.push("/");
+              }
+            }}
+          />
+        )}
+
+        {/* Show card for other steps */}
+        {step !== "encryption-setup" && (
         <Card className="w-full">
           <CardHeader>
             <CardTitle>
-              {step === "choose" && "Welcome to Helvety"}
-              {step === "registering" && "Creating Account..."}
-              {step === "authenticating" && "Signing In..."}
+              {step === "email" && "Welcome to Helvety"}
+              {step === "email-sent" && "Check Your Email"}
+              {step === "passkey-setup" && "Set Up Your Passkey"}
+              {step === "passkey-signin" && "Sign In with Passkey"}
+              {step === "passkey-verify" && "Verify Your Passkey"}
             </CardTitle>
             <CardDescription>
-              {step === "choose" &&
-                "Sign in or create an account using your device"}
-              {step === "registering" &&
-                "Complete passkey setup on your device"}
-              {step === "authenticating" &&
-                "Verify your identity on your device"}
+              {step === "email" &&
+                "Enter your email to sign in or create an account"}
+              {step === "email-sent" &&
+                `We sent a verification link to ${email}`}
+              {step === "passkey-setup" &&
+                "Create a passkey to secure your account"}
+              {step === "passkey-signin" && "Use your passkey to sign in"}
+              {step === "passkey-verify" &&
+                "Verify your new passkey to complete setup"}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Step 1: Choose action */}
-            {step === "choose" && (
+            {/* Step 1: Email input */}
+            {step === "email" && (
+              <form onSubmit={handleEmailSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoFocus
+                    disabled={isLoading}
+                  />
+                </div>
+
+                {error && (
+                  <p className="text-destructive text-center text-sm">
+                    {error}
+                  </p>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={isLoading || !email}
+                  size="lg"
+                  className="w-full"
+                >
+                  {isLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mail className="mr-2 h-4 w-4" />
+                  )}
+                  Continue
+                </Button>
+
+                <p className="text-muted-foreground text-center text-xs">
+                  We&apos;ll send you a verification link to sign in securely.
+                </p>
+              </form>
+            )}
+
+            {/* Step 2: Email sent */}
+            {step === "email-sent" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-center py-4">
+                  <div className="bg-primary/10 flex h-16 w-16 items-center justify-center rounded-full">
+                    <Mail className="text-primary h-8 w-8" />
+                  </div>
+                </div>
+
+                <p className="text-muted-foreground text-center text-sm">
+                  Click the link in the email to continue. The link will expire
+                  in 1 hour.
+                </p>
+
+                {error && (
+                  <p className="text-destructive text-center text-sm">
+                    {error}
+                  </p>
+                )}
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={handleBack}
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Use a different email
+                </Button>
+              </div>
+            )}
+
+            {/* Step 3: Passkey setup (new users) */}
+            {step === "passkey-setup" && (
               <div className="space-y-4">
                 {!passkeySupported && (
                   <div className="bg-destructive/10 text-destructive rounded-lg p-3 text-sm">
@@ -336,125 +463,148 @@ function LoginContent() {
                   </div>
                 )}
 
-                <div className="flex flex-col gap-3">
-                  <Button
-                    onClick={handleSignIn}
-                    disabled={isLoading || !passkeySupported}
-                    size="lg"
-                    className="w-full"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <LogIn className="mr-2 h-4 w-4" />
-                    )}
-                    Sign In
-                  </Button>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-background text-muted-foreground px-2">
-                        or
-                      </span>
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={handleCreateAccount}
-                    variant="outline"
-                    disabled={isLoading || !passkeySupported}
-                    size="lg"
-                    className="w-full"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <UserPlus className="mr-2 h-4 w-4" />
-                    )}
-                    Create Account
-                  </Button>
-                </div>
-
-                {error && (
-                  <p className="text-destructive text-center text-sm">
-                    {error}
-                  </p>
-                )}
-
-                <p className="text-muted-foreground text-center text-xs">
-                  No password or email needed. Your device secures your account
-                  with Face ID, fingerprint, or PIN.
-                </p>
-              </div>
-            )}
-
-            {/* Registering step - passkey creation in progress */}
-            {step === "registering" && (
-              <div className="space-y-4">
                 <div className="flex items-center justify-center py-4">
-                  <div className="bg-primary/10 flex h-12 w-12 items-center justify-center rounded-full">
-                    <Loader2 className="text-primary h-6 w-6 animate-spin" />
+                  <div className="bg-primary/10 flex h-16 w-16 items-center justify-center rounded-full">
+                    {isLoading ? (
+                      <Loader2 className="text-primary h-8 w-8 animate-spin" />
+                    ) : (
+                      <KeyRound className="text-primary h-8 w-8" />
+                    )}
                   </div>
                 </div>
+
                 <p className="text-muted-foreground text-center text-sm">
-                  Scan the QR code with your phone and verify with Face ID,
-                  fingerprint, or PIN.
+                  {isLoading
+                    ? "Scan the QR code with your phone and verify with Face ID, fingerprint, or PIN."
+                    : "A passkey lets you sign in securely using Face ID, fingerprint, or PIN on your device."}
                 </p>
+
                 {error && (
                   <p className="text-destructive text-center text-sm">
                     {error}
                   </p>
                 )}
+
                 <Button
-                  type="button"
-                  variant="ghost"
+                  onClick={handlePasskeySetup}
+                  disabled={isLoading || !passkeySupported}
+                  size="lg"
                   className="w-full"
-                  onClick={handleBack}
-                  disabled={isLoading && !error}
                 >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Cancel
+                  {isLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <KeyRound className="mr-2 h-4 w-4" />
+                  )}
+                  {isLoading ? "Setting up passkey..." : "Set Up Passkey"}
                 </Button>
               </div>
             )}
 
-            {/* Authenticating step - passkey authentication in progress */}
-            {step === "authenticating" && (
+            {/* Step 4: Passkey sign in (existing users) */}
+            {step === "passkey-signin" && (
               <div className="space-y-4">
+                {!passkeySupported && (
+                  <div className="bg-destructive/10 text-destructive rounded-lg p-3 text-sm">
+                    Your browser doesn&apos;t support passkeys. Please use a
+                    modern browser like Chrome, Safari, or Edge.
+                  </div>
+                )}
+
                 <div className="flex items-center justify-center py-4">
-                  <div className="bg-primary/10 flex h-12 w-12 items-center justify-center rounded-full">
-                    <Loader2 className="text-primary h-6 w-6 animate-spin" />
+                  <div className="bg-primary/10 flex h-16 w-16 items-center justify-center rounded-full">
+                    {isLoading ? (
+                      <Loader2 className="text-primary h-8 w-8 animate-spin" />
+                    ) : (
+                      <KeyRound className="text-primary h-8 w-8" />
+                    )}
                   </div>
                 </div>
+
                 <p className="text-muted-foreground text-center text-sm">
-                  Scan the QR code with your phone and verify with Face ID,
-                  fingerprint, or PIN.
+                  {isLoading
+                    ? "Scan the QR code with your phone and verify with Face ID, fingerprint, or PIN."
+                    : "Use your passkey to verify your identity and complete sign in."}
                 </p>
+
                 {error && (
                   <p className="text-destructive text-center text-sm">
                     {error}
                   </p>
                 )}
+
+                <Button
+                  onClick={handlePasskeySignIn}
+                  disabled={isLoading || !passkeySupported}
+                  size="lg"
+                  className="w-full"
+                >
+                  {isLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <KeyRound className="mr-2 h-4 w-4" />
+                  )}
+                  {isLoading ? "Authenticating..." : "Sign In with Passkey"}
+                </Button>
+              </div>
+            )}
+
+            {/* Step 5: Verify passkey after setup */}
+            {step === "passkey-verify" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-center py-4">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10">
+                    {isLoading ? (
+                      <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+                    ) : (
+                      <CheckCircle2 className="h-8 w-8 text-green-500" />
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-muted-foreground text-center text-sm">
+                  {isLoading
+                    ? "Verifying your passkey..."
+                    : "Your passkey has been created! Now verify it to complete your account setup."}
+                </p>
+
+                {error && (
+                  <p className="text-destructive text-center text-sm">
+                    {error}
+                  </p>
+                )}
+
+                <Button
+                  onClick={handlePasskeySignIn}
+                  disabled={isLoading || !passkeySupported}
+                  size="lg"
+                  className="w-full"
+                >
+                  {isLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <KeyRound className="mr-2 h-4 w-4" />
+                  )}
+                  {isLoading ? "Verifying..." : "Verify Passkey"}
+                </Button>
+
                 <Button
                   type="button"
                   variant="ghost"
                   className="w-full"
-                  onClick={handleBack}
-                  disabled={isLoading && !error}
+                  onClick={handleCompleteAuth}
+                  disabled={isLoading}
                 >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Cancel
+                  Skip for now
                 </Button>
               </div>
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Show where user will be redirected */}
-        {redirectUri && (
+        {redirectUri && step === "email" && (
           <p className="text-muted-foreground text-center text-xs">
             You&apos;ll be redirected back after signing in.
           </p>

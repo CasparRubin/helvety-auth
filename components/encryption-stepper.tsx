@@ -4,46 +4,83 @@ import { Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-/** Steps in the email + passkey authentication flow */
-export type AuthStep = "email" | "verify" | "passkey";
+/** Type of authentication/encryption flow */
+export type AuthFlowType = "new_user" | "returning_user";
+
+/** Steps in the encryption flow */
+export type AuthStep =
+  | "email"
+  | "create_passkey"
+  | "verify_encryption"
+  | "sign_in";
 
 interface StepConfig {
   id: AuthStep;
   label: string;
 }
 
-/** Steps for the email + passkey auth flow */
-const STEPS: StepConfig[] = [
-  { id: "email", label: "Enter Email" },
-  { id: "verify", label: "Verify Email" },
-  { id: "passkey", label: "Passkey" },
-];
+/** Step configurations for each flow type */
+const FLOW_STEPS: Record<AuthFlowType, StepConfig[]> = {
+  new_user: [
+    { id: "email", label: "Email" },
+    { id: "create_passkey", label: "Setup Passkey" },
+    { id: "verify_encryption", label: "Verify" },
+  ],
+  returning_user: [
+    { id: "email", label: "Email" },
+    { id: "sign_in", label: "Unlock" },
+  ],
+};
+
+/**
+ * Get the auth step based on setup step (used by encryption-setup)
+ */
+export function getSetupStep(
+  setupStep:
+    | "initial"
+    | "registering"
+    | "ready_to_sign_in"
+    | "signing_in"
+    | "complete"
+): AuthStep {
+  switch (setupStep) {
+    case "initial":
+    case "registering":
+      return "create_passkey";
+    case "ready_to_sign_in":
+    case "signing_in":
+    case "complete":
+      return "verify_encryption";
+  }
+}
 
 interface AuthStepperProps {
-  /** The current step in the flow */
+  flowType: AuthFlowType;
   currentStep: AuthStep;
-  /** Optional className for the container */
   className?: string;
 }
 
 /**
- * Stepper component for the email + passkey authentication flow.
- * Shows progress through: Enter Email -> Verify Email -> Passkey
+ * Stepper component for the encryption setup/unlock flow.
  */
-export function AuthStepper({ currentStep, className }: AuthStepperProps) {
-  const currentIndex = STEPS.findIndex((s) => s.id === currentStep);
+export function AuthStepper({
+  flowType,
+  currentStep,
+  className,
+}: AuthStepperProps) {
+  const steps = FLOW_STEPS[flowType];
+  const currentIndex = steps.findIndex((s) => s.id === currentStep);
 
   return (
     <div className={cn("mx-auto mb-6 w-full max-w-md", className)}>
       <div className="flex items-center justify-center">
-        {STEPS.map((step, index) => {
+        {steps.map((step, index) => {
           const isComplete = index < currentIndex;
           const isCurrent = index === currentIndex;
-          const isLast = index === STEPS.length - 1;
+          const isLast = index === steps.length - 1;
 
           return (
             <div key={step.id} className="flex items-center">
-              {/* Step circle and label */}
               <div className="flex flex-col items-center">
                 <div
                   className={cn(
@@ -70,7 +107,6 @@ export function AuthStepper({ currentStep, className }: AuthStepperProps) {
                 </span>
               </div>
 
-              {/* Connector line */}
               {!isLast && (
                 <div
                   className={cn(

@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: #f5f5f5;
+      font-family:
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        &quot;Segoe UI&quot;,
+        Roboto,
+        &quot;Helvetica Neue&quot;,
+        Arial,
+        sans-serif;
+    "
+  >
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+      <tr>
+        <td align="center" style="padding: 32px 20px">
+          <table
+            role="presentation"
+            width="100%"
+            cellspacing="0"
+            cellpadding="0"
+            bgcolor="#ffffff"
+            style="
+              max-width: 480px;
+              background-color: #ffffff;
+              border: 1px solid #e5e5e5;
+            "
+          >
+            <tr>
+              <td style="padding: 48px 40px; text-align: center">
+                <h1
+                  style="
+                    margin: 0 0 24px 0;
+                    font-size: 24px;
+                    font-weight: 600;
+                    color: #1a1a1a;
+                  "
+                >
+                  Verify Your Identity
+                </h1>
+                <p
+                  style="
+                    margin: 0 0 24px 0;
+                    font-size: 16px;
+                    line-height: 1.6;
+                    color: #525252;
+                  "
+                >
+                  Enter this code to confirm your identity:
+                </p>
+                <div
+                  style="
+                    display: inline-block;
+                    padding: 16px 32px;
+                    background-color: #f5f5f5;
+                    border: 1px solid #e5e5e5;
+                    margin-bottom: 24px;
+                  "
+                >
+                  <span
+                    style="
+                      font-size: 32px;
+                      font-weight: 600;
+                      letter-spacing: 4px;
+                      color: #1a1a1a;
+                    "
+                    >{{ .Token }}</span
+                  >
+                </div>
+                <p style="margin: 0; font-size: 14px; color: #737373">
+                  This code will expire shortly. If you didn't request this
+                  code, please secure your account.
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="margin: 24px 0 0 0; font-size: 13px; color: #a3a3a3">
+            <a
+              href="https://helvety.com"
+              style="color: #a3a3a3; text-decoration: none"
+              >Helvety</a
+            >
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

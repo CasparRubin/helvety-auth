@@ -5,15 +5,15 @@ Centralized authentication service for the Helvety ecosystem, providing password
 ## Overview
 
 Helvety Auth (`auth.helvety.com`) handles all authentication for Helvety applications:
+
 - **helvety.com** - Main website
 - **store.helvety.com** - Store application
 - **pdf.helvety.com** - PDF application
 
 ## Features
 
-- **Passkey-Only Authentication** - No passwords or emails required
-- **Zero Personal Data** - Accounts use only internal identifiers, no email collection
-- **WebAuthn/FIDO2** - Secure authentication via phone (QR code + biometrics)
+- **Email + Passkey Authentication** - Secure two-factor flow with magic links and biometrics
+- **WebAuthn/FIDO2** - Secure passkey authentication via phone (QR code + biometrics)
 - **Cross-Subdomain SSO** - Single sign-on across all `*.helvety.com` apps
 - **Redirect URI Support** - Seamless cross-app authentication flows
 
@@ -23,13 +23,14 @@ Helvety Auth (`auth.helvety.com`) handles all authentication for Helvety applica
 - **Language**: TypeScript
 - **Authentication**: Supabase Auth + SimpleWebAuthn
 - **Styling**: Tailwind CSS 4 + shadcn/ui
+- **Testing**: Vitest + Playwright
 - **Deployment**: Vercel
 
 ## Authentication Flows
 
-Authentication is **passkey-only** — no email address is required. Users authenticate using their device's biometrics (Face ID, fingerprint, or PIN) via WebAuthn.
+Authentication uses a secure two-step process: email verification via magic link, followed by passkey authentication.
 
-### New User Flow (Create Account)
+### New User Flow
 
 ```mermaid
 sequenceDiagram
@@ -38,20 +39,24 @@ sequenceDiagram
     participant A as Auth Service
     participant S as Supabase
 
-    U->>A: Click "Create Account"
-    A->>S: Create user with internal ID
-    S-->>A: User created
-    A->>U: Show QR code for passkey
+    U->>A: Enter email address
+    A->>S: Send magic link
+    S-->>U: Email with magic link
+    U->>A: Click magic link
+    A->>S: Verify email
+    S-->>A: Email verified
+    A->>U: Show passkey setup
     U->>P: Scan QR code
     P->>U: Verify biometrics
     P->>A: Passkey credential
     A->>S: Store passkey
-    A->>S: Generate session
-    S-->>A: Session created
+    A->>U: Verify passkey
+    U->>P: Authenticate
+    P->>A: Passkey response
     A-->>U: Redirect to app
 ```
 
-### Returning User Flow (Sign In)
+### Returning User Flow
 
 ```mermaid
 sequenceDiagram
@@ -60,45 +65,52 @@ sequenceDiagram
     participant A as Auth Service
     participant S as Supabase
 
-    U->>A: Click "Sign In"
-    A->>U: Show QR code
+    U->>A: Enter email address
+    A->>S: Send magic link
+    S-->>U: Email with magic link
+    U->>A: Click magic link
+    A->>S: Verify email
+    S-->>A: Email verified
+    A->>U: Show passkey sign-in
     U->>P: Scan QR code
     P->>U: Verify biometrics
     P->>A: Passkey response
     A->>S: Verify passkey
     S-->>A: Credential valid
-    A->>S: Generate session
-    S-->>A: Session created
     A-->>U: Redirect to app
 ```
 
 ### Key Points
 
-- **No email required** - Users never provide an email address
-- **Internal identifiers** - Accounts use UUIDs (`user_{uuid}@helvety.internal`) internally
-- **Stripe handles purchase data** - Email/name/address collected by Stripe during checkout, not by Helvety
+- **Email required** - Users provide an email address for authentication and account recovery
+- **Magic link verification** - Email confirmation before passkey authentication
+- **Passkey security** - Biometric verification (Face ID, fingerprint, or PIN) via WebAuthn
 
 ## Project Structure
 
 ```
 helvety-auth/
+├── __tests__/                       # Unit and integration tests
+├── .github/
+│   └── workflows/
+│       └── test.yml                 # Automated testing
 ├── app/
 │   ├── actions/
-│   │   └── passkey-auth-actions.ts  # WebAuthn passkey operations
+│   │   └── passkey-auth-actions.ts  # Magic link & WebAuthn passkey operations
 │   ├── auth/
 │   │   └── callback/
 │   │       └── route.ts             # Magic link & OAuth callback handler
 │   ├── login/
-│   │   └── page.tsx                 # Login page with passkey-only flow
+│   │   └── page.tsx                 # Login page with email + passkey flow
 │   ├── logout/
 │   │   └── route.ts                 # Logout with redirect support
 │   ├── layout.tsx                   # Root layout with providers
 │   └── page.tsx                     # Auth-aware redirect (prod→helvety.com, dev→login)
 ├── proxy.ts                         # Session refresh & cross-subdomain cookie handling
 ├── components/
-│   ├── auth-stepper.tsx             # Visual progress indicator
+│   ├── auth-stepper.tsx             # Visual progress indicator (Email → Verify → Passkey)
 │   ├── auth-token-handler.tsx       # Client-side hash token handler
-│   ├── navbar.tsx                   # Navigation bar
+│   ├── navbar.tsx                   # Navigation bar with profile menu
 │   ├── app-switcher.tsx             # Cross-app navigation
 │   └── ui/                          # shadcn/ui components
 ├── lib/
@@ -114,26 +126,45 @@ helvety-auth/
 │   ├── env-validation.ts            # Environment variable validation
 │   ├── logger.ts                    # Logging utility
 │   └── utils.ts                     # General utilities
-└── public/                          # Static assets
+├── e2e/                             # End-to-end tests (Playwright)
+├── emails/                          # Supabase email templates
+│   ├── confirmSignUp.html           # Email confirmation
+│   ├── magicLink.html               # Magic link sign-in
+│   ├── resetPassword.html           # Password/passkey recovery
+│   ├── changeEmailAddress.html      # Email change confirmation
+│   ├── inviteUser.html              # User invitation
+│   └── reauthentication.html        # Re-authentication verification
+├── public/                          # Static assets
+├── vitest.config.ts                 # Vitest configuration
+├── vitest.setup.ts                  # Test setup
+└── playwright.config.ts             # Playwright E2E configuration
 ```
 
 ## API Routes
 
 ### GET `/auth/callback`
 
-Handles authentication callbacks from magic links and OAuth flows.
+Handles authentication callbacks from magic links and OAuth flows. After successful email verification, redirects to the login page with the appropriate passkey step.
 
 **Query Parameters:**
+
 - `code` - PKCE authorization code
 - `token_hash` - Email OTP token hash
 - `type` - OTP type (magiclink, signup, recovery, invite, email_change)
 - `redirect_uri` - Where to redirect after authentication
+
+**Behavior:**
+
+- Verifies the magic link token
+- Checks if user has a passkey registered
+- Redirects to `/login?step=passkey-setup` (new users) or `/login?step=passkey-signin` (existing users)
 
 ### GET `/logout`
 
 Signs out the user and redirects.
 
 **Query Parameters:**
+
 - `redirect_uri` - Where to redirect after logout (default: helvety.com)
 
 **Example:** `/logout?redirect_uri=https://pdf.helvety.com`
@@ -177,9 +208,28 @@ CREATE TABLE user_auth_credentials (
 
 - **httpOnly Cookies** - Challenge storage uses secure httpOnly cookies
 - **PKCE Flow** - Supabase uses PKCE for OAuth code exchange
+- **Magic Link Expiry** - Links expire after 1 hour
 - **Passkey Verification** - Strict origin and RP ID validation
 - **Session Cookies** - Shared across subdomains via `.helvety.com` domain
 - **Counter Tracking** - Prevents passkey replay attacks
+
+### End-to-End Encryption Setup
+
+After passkey authentication, new users are guided to set up encryption:
+
+- **Encryption Passkey** - A separate passkey is created using the WebAuthn PRF (Pseudo-Random Function) extension
+- **Key Derivation** - Encryption keys are derived client-side from the PRF output using HKDF
+- **Zero-Knowledge** - The server stores only PRF parameters (salt values); encryption keys are never transmitted
+- **Cross-App Support** - Encryption passkeys work across all `*.helvety.com` apps (registered to `helvety.com` RP ID)
+
+Browser requirements for encryption:
+
+- Chrome 128+
+- Edge 128+
+- Safari 18+
+- Firefox 139+ (desktop only)
+
+**Note:** Firefox for Android does not support the PRF extension.
 
 ## Developer
 

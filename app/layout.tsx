@@ -7,8 +7,9 @@ import "./globals.css";
 import { AuthTokenHandler } from "@/components/auth-token-handler";
 import { Navbar } from "@/components/navbar";
 import { ThemeProvider } from "@/components/theme-provider";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { EncryptionProvider } from "@/lib/crypto/encryption-context";
 
 import type { Metadata, Viewport } from "next";
 
@@ -94,14 +95,16 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <TooltipProvider>
-            <Suspense>
-              <AuthTokenHandler />
-            </Suspense>
-            <Navbar />
-            <div className="mx-auto w-full max-w-[2000px]">{children}</div>
-            <Toaster position="top-center" />
-          </TooltipProvider>
+          <EncryptionProvider>
+            <TooltipProvider>
+              <Suspense>
+                <AuthTokenHandler />
+              </Suspense>
+              <Navbar />
+              <div className="mx-auto w-full max-w-[2000px]">{children}</div>
+              <Toaster />
+            </TooltipProvider>
+          </EncryptionProvider>
         </ThemeProvider>
         <Analytics />
         <SpeedInsights />

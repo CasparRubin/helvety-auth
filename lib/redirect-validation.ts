@@ -52,15 +52,15 @@ export function isValidRedirectUri(uri: string | null | undefined): boolean {
  * Validates and returns a safe redirect URI
  *
  * @param uri - The redirect URI to validate
- * @param defaultUri - Default URI to return if validation fails
+ * @param defaultUri - Default URI to return if validation fails (optional)
  * @returns The validated URI or the default URI
  */
 export function getSafeRedirectUri(
   uri: string | null | undefined,
-  defaultUri: string
-): string {
+  defaultUri?: string | null
+): string | null {
   if (isValidRedirectUri(uri)) {
     return uri!;
   }
-  return defaultUri;
+  return defaultUri ?? null;
 }

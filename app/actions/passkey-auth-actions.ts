@@ -41,11 +41,10 @@ export type PasskeyActionResponse<T = void> = {
 
 type StoredChallenge = {
   challenge: string;
-  pendingUserId?: string; // For new user registration flow
-  userId?: string; // For existing user flows
-  syntheticEmail?: string; // Store synthetic email for new user registration
+  userId?: string; // For authenticated user flows
   timestamp: number;
   redirectUri?: string;
+  prfSalt?: string; // PRF salt for encryption (base64 encoded)
 };
 
 // =============================================================================
@@ -55,7 +54,139 @@ type StoredChallenge = {
 const RP_NAME = "Helvety";
 const CHALLENGE_COOKIE_NAME = "webauthn_challenge";
 const CHALLENGE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
-const SYNTHETIC_EMAIL_DOMAIN = "helvety.internal";
+const PRF_VERSION = 1; // Current PRF encryption version
+const PRF_SALT_LENGTH = 32; // PRF salt length in bytes
+
+/**
+ * Generate a random PRF salt for encryption
+ */
+function generatePRFSalt(): string {
+  const salt = crypto.getRandomValues(new Uint8Array(PRF_SALT_LENGTH));
+  return Buffer.from(salt).toString("base64");
+}
+
+// =============================================================================
+// EMAIL + MAGIC LINK AUTHENTICATION
+// =============================================================================
+
+/**
+ * Send a magic link to the user's email
+ * Creates a new user if they don't exist, otherwise sends login link
+ *
+ * @param email - The user's email address
+ * @param redirectUri - Optional redirect URI to preserve through auth flow
+ * @returns Success status with information about whether user is new
+ */
+export async function sendMagicLink(
+  email: string,
+  redirectUri?: string
+): Promise<PasskeyActionResponse<{ isNewUser: boolean }>> {
+  try {
+    const adminClient = createAdminClient();
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      return { success: false, error: "Please enter a valid email address" };
+    }
+
+    // Check if user exists
+    const { data: existingUsers, error: listError } =
+      await adminClient.auth.admin.listUsers();
+
+    if (listError) {
+      logger.error("Error listing users:", listError);
+      return { success: false, error: "Failed to check user status" };
+    }
+
+    const existingUser = existingUsers.users.find(
+      (u) => u.email?.toLowerCase() === normalizedEmail
+    );
+
+    let isNewUser = false;
+
+    if (!existingUser) {
+      // Create new user
+      const { error: createError } = await adminClient.auth.admin.createUser({
+        email: normalizedEmail,
+        email_confirm: false, // Will be confirmed when they click the link
+      });
+
+      if (createError) {
+        logger.error("Error creating user:", createError);
+        return { success: false, error: "Failed to create account" };
+      }
+
+      isNewUser = true;
+    }
+
+    // Build the callback URL with redirect_uri if provided
+    const origin =
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://auth.helvety.com";
+    const callbackUrl = redirectUri
+      ? `${origin}/auth/callback?redirect_uri=${encodeURIComponent(redirectUri)}`
+      : `${origin}/auth/callback`;
+
+    // Send magic link (this also confirms email for new users)
+    const { error: signInError } = await adminClient.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: {
+        emailRedirectTo: callbackUrl,
+      },
+    });
+
+    if (signInError) {
+      logger.error("Error sending magic link:", signInError);
+      return { success: false, error: "Failed to send verification email" };
+    }
+
+    return {
+      success: true,
+      data: { isNewUser },
+    };
+  } catch (error) {
+    logger.error("Error in sendMagicLink:", error);
+    return { success: false, error: "Failed to send verification email" };
+  }
+}
+
+/**
+ * Check if a user has any passkey credentials registered
+ *
+ * @param userId - The user's ID
+ * @returns Whether the user has passkeys and the count
+ */
+export async function checkUserPasskeyStatus(
+  userId: string
+): Promise<PasskeyActionResponse<{ hasPasskey: boolean; count: number }>> {
+  try {
+    const adminClient = createAdminClient();
+
+    const { data, error, count } = await adminClient
+      .from("user_auth_credentials")
+      .select("id", { count: "exact" })
+      .eq("user_id", userId);
+
+    if (error) {
+      logger.error("Error checking passkey status:", error);
+      return { success: false, error: "Failed to check passkey status" };
+    }
+
+    const credentialCount = count ?? data?.length ?? 0;
+
+    return {
+      success: true,
+      data: {
+        hasPasskey: credentialCount > 0,
+        count: credentialCount,
+      },
+    };
+  } catch (error) {
+    logger.error("Error in checkUserPasskeyStatus:", error);
+    return { success: false, error: "Failed to check passkey status" };
+  }
+}
 
 /**
  * Get the Relying Party ID
@@ -101,15 +232,6 @@ function getExpectedOrigins(rpId: string): string[] {
   ];
 }
 
-/**
- * Generate a synthetic email for a new user
- * Format: user_{uuid}@helvety.internal
- */
-function generateSyntheticEmail(): string {
-  const uuid = crypto.randomUUID();
-  return `user_${uuid}@${SYNTHETIC_EMAIL_DOMAIN}`;
-}
-
 // =============================================================================
 // CHALLENGE STORAGE (using cookies)
 // =============================================================================
@@ -117,7 +239,9 @@ function generateSyntheticEmail(): string {
 /**
  * Store challenge in a secure httpOnly cookie
  */
-async function storeChallenge(data: Omit<StoredChallenge, "timestamp">): Promise<void> {
+async function storeChallenge(
+  data: Omit<StoredChallenge, "timestamp">
+): Promise<void> {
   const cookieStore = await cookies();
   const challengeData: StoredChallenge = {
     ...data,
@@ -167,212 +291,25 @@ async function clearChallenge(): Promise<void> {
 }
 
 // =============================================================================
-// NEW USER REGISTRATION (Passkey-only flow)
-// =============================================================================
-
-/**
- * Start new user registration - creates a user with synthetic email and returns passkey options
- * This is the first step for a new user who wants to create an account with just a passkey
- *
- * @param origin - The origin URL (e.g., 'https://auth.helvety.com')
- * @param redirectUri - Optional redirect URI to preserve through auth flow
- * @returns Registration options to pass to the WebAuthn API
- */
-export async function registerNewUser(
-  origin: string,
-  redirectUri?: string
-): Promise<PasskeyActionResponse<PublicKeyCredentialCreationOptionsJSON>> {
-  try {
-    const adminClient = createAdminClient();
-    const rpId = getRpId(origin);
-
-    // Generate a synthetic email for this user
-    const syntheticEmail = generateSyntheticEmail();
-
-    // Create the user in Supabase Auth with the synthetic email
-    const { data: createData, error: createError } =
-      await adminClient.auth.admin.createUser({
-        email: syntheticEmail,
-        email_confirm: true, // Auto-confirm since it's synthetic
-      });
-
-    if (createError || !createData.user) {
-      logger.error("Error creating user:", createError);
-      return { success: false, error: "Failed to create account" };
-    }
-
-    const newUser = createData.user;
-
-    // Generate passkey registration options for this new user
-    const opts: GenerateRegistrationOptionsOpts = {
-      rpName: RP_NAME,
-      rpID: rpId,
-      userName: newUser.id, // Use ID since email is synthetic
-      userDisplayName: "Helvety User",
-      userID: new TextEncoder().encode(newUser.id),
-      attestationType: "none",
-      excludeCredentials: [], // New user has no existing credentials
-      authenticatorSelection: {
-        // Force cross-platform authenticators (phone via QR code)
-        authenticatorAttachment: "cross-platform",
-        userVerification: "required",
-        residentKey: "required",
-        requireResidentKey: true,
-      },
-      timeout: 60000,
-    };
-
-    const options = await generateRegOptions(opts);
-
-    // Add hints to prefer phone/hybrid authenticators over USB security keys
-    const optionsWithHints = {
-      ...options,
-      hints: ["hybrid"] as ("hybrid" | "security-key" | "client-device")[],
-    };
-
-    // Store challenge with pending user info for verification
-    await storeChallenge({
-      challenge: options.challenge,
-      pendingUserId: newUser.id,
-      syntheticEmail: syntheticEmail,
-      redirectUri,
-    });
-
-    return { success: true, data: optionsWithHints };
-  } catch (error) {
-    logger.error("Error in registerNewUser:", error);
-    return { success: false, error: "Failed to start registration" };
-  }
-}
-
-/**
- * Complete new user registration - verifies passkey and creates session
- * This is the second step after the user completes the WebAuthn registration ceremony
- *
- * @param response - The registration response from the browser
- * @param origin - The origin URL
- * @returns Success status with auth URL for session creation
- */
-export async function completeUserRegistration(
-  response: RegistrationResponseJSON,
-  origin: string
-): Promise<PasskeyActionResponse<{ authUrl: string; userId: string; redirectUri?: string }>> {
-  try {
-    const adminClient = createAdminClient();
-
-    // Retrieve stored challenge with pending user info
-    const storedData = await getStoredChallenge();
-    if (!storedData || !storedData.pendingUserId || !storedData.syntheticEmail) {
-      return { success: false, error: "Registration session expired" };
-    }
-
-    const rpId = getRpId(origin);
-    const expectedOrigins = getExpectedOrigins(rpId);
-
-    // Verify the passkey registration
-    const opts: VerifyRegistrationResponseOpts = {
-      response,
-      expectedChallenge: storedData.challenge,
-      expectedOrigin: expectedOrigins,
-      expectedRPID: rpId,
-      requireUserVerification: true,
-    };
-
-    let verification: VerifiedRegistrationResponse;
-    try {
-      verification = await verifyRegistrationResponse(opts);
-    } catch (error) {
-      logger.error("Registration verification failed:", error);
-      // Clean up: delete the user since registration failed
-      await adminClient.auth.admin.deleteUser(storedData.pendingUserId);
-      return { success: false, error: "Passkey verification failed" };
-    }
-
-    if (!verification.verified || !verification.registrationInfo) {
-      // Clean up: delete the user since registration failed
-      await adminClient.auth.admin.deleteUser(storedData.pendingUserId);
-      return { success: false, error: "Passkey verification failed" };
-    }
-
-    const { registrationInfo } = verification;
-    const { credential, credentialDeviceType, credentialBackedUp } =
-      registrationInfo;
-
-    // Convert Uint8Array to base64url string for storage
-    const publicKeyBase64 = Buffer.from(credential.publicKey).toString(
-      "base64url"
-    );
-
-    // Store the credential in the database (using admin client since user isn't authenticated yet)
-    const { error: insertError } = await adminClient
-      .from("user_auth_credentials")
-      .insert({
-        user_id: storedData.pendingUserId,
-        credential_id: credential.id,
-        public_key: publicKeyBase64,
-        counter: credential.counter,
-        transports: credential.transports ?? [],
-        device_type: credentialDeviceType,
-        backed_up: credentialBackedUp,
-      });
-
-    if (insertError) {
-      logger.error("Error storing credential:", insertError);
-      // Clean up: delete the user since we couldn't store the credential
-      await adminClient.auth.admin.deleteUser(storedData.pendingUserId);
-      return { success: false, error: "Failed to complete registration" };
-    }
-
-    // Generate a magic link for the user to create their session
-    const callbackUrl = storedData.redirectUri
-      ? `${origin}/auth/callback?redirect_uri=${encodeURIComponent(storedData.redirectUri)}`
-      : `${origin}/auth/callback`;
-
-    const { data: linkData, error: linkError } =
-      await adminClient.auth.admin.generateLink({
-        type: "magiclink",
-        email: storedData.syntheticEmail,
-        options: {
-          redirectTo: callbackUrl,
-        },
-      });
-
-    if (linkError || !linkData.properties?.action_link) {
-      logger.error("Error generating auth link:", linkError);
-      return { success: false, error: "Failed to create session" };
-    }
-
-    // Clear the challenge
-    await clearChallenge();
-
-    return {
-      success: true,
-      data: {
-        authUrl: linkData.properties.action_link,
-        userId: storedData.pendingUserId,
-        redirectUri: storedData.redirectUri,
-      },
-    };
-  } catch (error) {
-    logger.error("Error in completeUserRegistration:", error);
-    return { success: false, error: "Failed to complete registration" };
-  }
-}
-
-// =============================================================================
-// EXISTING USER REGISTRATION (add passkey to existing account)
+// PASSKEY REGISTRATION (for authenticated users)
 // =============================================================================
 
 /**
  * Generate passkey registration options for an authenticated user
  * Called when a user wants to add a new passkey to their existing account
  *
+ * This includes PRF extension for E2EE encryption key derivation.
+ *
  * @param origin - The origin URL (e.g., 'https://auth.helvety.com')
  * @returns Registration options to pass to the WebAuthn API
  */
 export async function generatePasskeyRegistrationOptions(
   origin: string
-): Promise<PasskeyActionResponse<PublicKeyCredentialCreationOptionsJSON>> {
+): Promise<
+  PasskeyActionResponse<
+    PublicKeyCredentialCreationOptionsJSON & { prfSalt: string }
+  >
+> {
   try {
     const supabase = await createClient();
 
@@ -405,7 +342,7 @@ export async function generatePasskeyRegistrationOptions(
     const opts: GenerateRegistrationOptionsOpts = {
       rpName: RP_NAME,
       rpID: rpId,
-      userName: user.id, // Use ID since email may be synthetic
+      userName: user.id, // Use ID as unique identifier
       userDisplayName: "Helvety User",
       userID: new TextEncoder().encode(user.id),
       attestationType: "none",
@@ -422,19 +359,34 @@ export async function generatePasskeyRegistrationOptions(
 
     const options = await generateRegOptions(opts);
 
+    // Generate PRF salt for encryption key derivation
+    const prfSalt = generatePRFSalt();
+
     // Add hints to prefer phone/hybrid authenticators over USB security keys
-    const optionsWithHints = {
+    // Add PRF extension for encryption
+    const optionsWithExtensions = {
       ...options,
       hints: ["hybrid"] as ("hybrid" | "security-key" | "client-device")[],
+      extensions: {
+        prf: {
+          eval: {
+            first: Buffer.from(prfSalt, "base64"),
+          },
+        },
+      } as AuthenticationExtensionsClientInputs,
     };
 
-    // Store challenge for verification
+    // Store challenge and PRF salt for verification
     await storeChallenge({
       challenge: options.challenge,
       userId: user.id,
+      prfSalt,
     });
 
-    return { success: true, data: optionsWithHints };
+    return {
+      success: true,
+      data: { ...optionsWithExtensions, prfSalt },
+    };
   } catch (error) {
     logger.error("Error generating registration options:", error);
     return { success: false, error: "Failed to generate registration options" };
@@ -445,14 +397,20 @@ export async function generatePasskeyRegistrationOptions(
  * Verify passkey registration and store the credential
  * Called after the user completes the WebAuthn registration ceremony
  *
+ * Also stores PRF params for encryption if PRF was enabled.
+ *
  * @param response - The registration response from the browser
  * @param origin - The origin URL
+ * @param prfEnabled - Whether PRF was enabled during registration
  * @returns Success status and credential info
  */
 export async function verifyPasskeyRegistration(
   response: RegistrationResponseJSON,
-  origin: string
-): Promise<PasskeyActionResponse<{ credentialId: string }>> {
+  origin: string,
+  prfEnabled: boolean = false
+): Promise<
+  PasskeyActionResponse<{ credentialId: string; prfSalt?: string }>
+> {
   try {
     const supabase = await createClient();
 
@@ -529,12 +487,36 @@ export async function verifyPasskeyRegistration(
       return { success: false, error: "Failed to store credential" };
     }
 
+    // If PRF was enabled, store PRF params for encryption
+    let savedPrfSalt: string | undefined;
+    if (prfEnabled && storedData.prfSalt) {
+      const { error: prfError } = await supabase
+        .from("user_passkey_params")
+        .upsert(
+          {
+            user_id: user.id,
+            prf_salt: storedData.prfSalt,
+            credential_id: credential.id,
+            version: PRF_VERSION,
+          },
+          { onConflict: "user_id" }
+        );
+
+      if (prfError) {
+        logger.error("Error storing PRF params:", prfError);
+        // Don't fail the entire registration, just log the error
+        // The user can still use the passkey for auth
+      } else {
+        savedPrfSalt = storedData.prfSalt;
+      }
+    }
+
     // Clear the challenge
     await clearChallenge();
 
     return {
       success: true,
-      data: { credentialId: credential.id },
+      data: { credentialId: credential.id, prfSalt: savedPrfSalt },
     };
   } catch (error) {
     logger.error("Error verifying registration:", error);
@@ -689,7 +671,7 @@ export async function verifyPasskeyAuthentication(
       // Continue anyway - counter update is not critical for auth
     }
 
-    // Get user email for generating magic link (will be synthetic email)
+    // Get user email for generating magic link
     const { data: userData, error: userError } =
       await adminClient.auth.admin.getUserById(credential.user_id);
 
@@ -814,5 +796,140 @@ export async function deleteCredential(
   } catch (error) {
     logger.error("Error deleting credential:", error);
     return { success: false, error: "Failed to delete credential" };
+  }
+}
+
+// =============================================================================
+// ENCRYPTION (PRF PARAMS)
+// =============================================================================
+
+/**
+ * User passkey params for encryption
+ */
+export interface UserPasskeyParams {
+  user_id: string;
+  prf_salt: string;
+  credential_id: string;
+  version: number;
+  created_at: string;
+}
+
+/**
+ * Check if user has encryption (PRF params) set up
+ */
+export async function hasEncryptionSetup(): Promise<
+  PasskeyActionResponse<boolean>
+> {
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    const { data, error } = await supabase
+      .from("user_passkey_params")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (error) {
+      // PGRST116 = no rows found (user hasn't set up encryption)
+      if (error.code === "PGRST116") {
+        return { success: true, data: false };
+      }
+      logger.error("Error checking encryption setup:", error);
+      return { success: false, error: "Failed to check encryption status" };
+    }
+
+    return { success: true, data: !!data };
+  } catch (error) {
+    logger.error("Error in hasEncryptionSetup:", error);
+    return { success: false, error: "Failed to check encryption status" };
+  }
+}
+
+/**
+ * Get user's PRF params for encryption
+ */
+export async function getPasskeyParams(): Promise<
+  PasskeyActionResponse<UserPasskeyParams | null>
+> {
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    const { data, error } = await supabase
+      .from("user_passkey_params")
+      .select("*")
+      .eq("user_id", user.id)
+      .single();
+
+    if (error) {
+      // PGRST116 = no rows found
+      if (error.code === "PGRST116") {
+        return { success: true, data: null };
+      }
+      logger.error("Error getting PRF params:", error);
+      return { success: false, error: "Failed to get encryption params" };
+    }
+
+    return { success: true, data: data as UserPasskeyParams };
+  } catch (error) {
+    logger.error("Error in getPasskeyParams:", error);
+    return { success: false, error: "Failed to get encryption params" };
+  }
+}
+
+/**
+ * Save user's passkey encryption params (PRF salt and credential ID)
+ * Used during encryption setup flow
+ */
+export async function savePasskeyParams(params: {
+  prf_salt: string;
+  credential_id: string;
+  version: number;
+}): Promise<PasskeyActionResponse> {
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    const { error } = await supabase.from("user_passkey_params").upsert(
+      {
+        user_id: user.id,
+        prf_salt: params.prf_salt,
+        credential_id: params.credential_id,
+        version: params.version,
+      },
+      { onConflict: "user_id" }
+    );
+
+    if (error) {
+      logger.error("Error saving PRF params:", error);
+      return { success: false, error: "Failed to save encryption settings" };
+    }
+
+    return { success: true };
+  } catch (error) {
+    logger.error("Error in savePasskeyParams:", error);
+    return { success: false, error: "Failed to save encryption settings" };
   }
 }
