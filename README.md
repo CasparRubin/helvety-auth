@@ -86,63 +86,6 @@ sequenceDiagram
 - **Magic link verification** - Email confirmation before passkey authentication
 - **Passkey security** - Biometric verification (Face ID, fingerprint, or PIN) via WebAuthn
 
-## Project Structure
-
-```
-helvety-auth/
-├── __tests__/                       # Unit and integration tests
-├── .github/
-│   └── workflows/
-│       └── test.yml                 # Automated testing
-├── app/
-│   ├── actions/
-│   │   └── passkey-auth-actions.ts  # Magic link & WebAuthn passkey operations
-│   ├── auth/
-│   │   └── callback/
-│   │       └── route.ts             # Magic link & OAuth callback handler
-│   ├── login/
-│   │   └── page.tsx                 # Login page with email + passkey flow
-│   ├── logout/
-│   │   └── route.ts                 # Logout with redirect support
-│   ├── layout.tsx                   # Root layout with providers
-│   └── page.tsx                     # Auth-aware redirect (prod→helvety.com, dev→login)
-├── proxy.ts                         # Session refresh & cross-subdomain cookie handling
-├── components/
-│   ├── auth-stepper.tsx             # Visual progress indicator (Email → Verify → Passkey)
-│   ├── auth-token-handler.tsx       # Client-side hash fragment token handler (for #access_token flows)
-│   ├── encryption-setup.tsx         # Passkey + encryption setup wizard
-│   ├── navbar.tsx                   # Navigation bar with profile menu
-│   ├── app-switcher.tsx             # Cross-app navigation
-│   └── ui/                          # shadcn/ui components
-├── lib/
-│   ├── crypto/
-│   │   └── passkey.ts               # WebAuthn browser support detection
-│   ├── supabase/
-│   │   ├── admin.ts                 # Admin client (service role)
-│   │   ├── client.ts                # Browser client
-│   │   └── server.ts                # Server-side client
-│   ├── types/
-│   │   ├── entities.ts              # Database entity types
-│   │   └── index.ts                 # Type exports
-│   ├── auth-utils.ts                # Shared auth step detection utilities
-│   ├── env-validation.ts            # Environment variable validation
-│   ├── logger.ts                    # Logging utility
-│   ├── redirect-validation.ts       # Redirect URI validation (dynamic subdomain support)
-│   └── utils.ts                     # General utilities
-├── e2e/                             # End-to-end tests (Playwright)
-├── emails/                          # Supabase email templates
-│   ├── confirmSignUp.html           # Email confirmation
-│   ├── magicLink.html               # Magic link sign-in
-│   ├── resetPassword.html           # Password/passkey recovery
-│   ├── changeEmailAddress.html      # Email change confirmation
-│   ├── inviteUser.html              # User invitation
-│   └── reauthentication.html        # Re-authentication verification
-├── public/                          # Static assets
-├── vitest.config.ts                 # Vitest configuration
-├── vitest.setup.ts                  # Test setup
-└── playwright.config.ts             # Playwright E2E configuration
-```
-
 ## API Routes
 
 ### GET `/auth/callback`
@@ -155,12 +98,17 @@ Handles authentication callbacks from magic links and OAuth flows. After success
 - `token_hash` - Email OTP token hash
 - `type` - OTP type (magiclink, signup, recovery, invite, email_change)
 - `redirect_uri` - Where to redirect after authentication (validated against allowlist)
+- `passkey_verified` - Set to `true` when coming from successful passkey authentication
 
 **Behavior:**
 
 - Verifies the magic link token (via code exchange or OTP verification)
 - Checks if user has a passkey and encryption configured
-- Redirects to `/login?step=encryption-setup` (new users or users without encryption) or `/login?step=passkey-signin` (existing users with encryption)
+- Redirects based on user status:
+  - New users or missing encryption: `/login?step=encryption-setup`
+  - Returning users after email verification: `/login?step=passkey-signin`
+  - After passkey verification (`passkey_verified=true`): final destination
+- If no `redirect_uri` is provided, defaults to `https://helvety.com`
 - **Always preserves `redirect_uri`** through the entire auth flow, including when handling hash fragment authentication (where tokens arrive as `#access_token=...` instead of query params)
 
 ### GET `/logout`
@@ -172,6 +120,16 @@ Signs out the user and redirects.
 - `redirect_uri` - Where to redirect after logout (default: helvety.com)
 
 **Example:** `/logout?redirect_uri=https://pdf.helvety.com`
+
+## Session Management (proxy.ts)
+
+The `proxy.ts` middleware handles session refresh and cross-subdomain cookie management:
+
+- **Session Refresh** - Automatically refreshes Supabase auth sessions on every request before they expire
+- **Cross-Subdomain SSO** - Sets cookies with `.helvety.com` domain in production for session sharing across all Helvety apps
+- **Server Component Support** - Ensures server components always have access to fresh session data
+
+The middleware runs on all routes except static assets and handles the Supabase session lifecycle transparently.
 
 ## Cross-App Authentication
 
@@ -192,7 +150,11 @@ After authentication, users are redirected back to their original app with an ac
 
 ## Database Schema
 
-The service uses a `user_auth_credentials` table for storing WebAuthn credentials:
+The service uses two tables for storing WebAuthn credentials and encryption parameters:
+
+### user_auth_credentials
+
+Stores WebAuthn passkey credentials:
 
 ```sql
 CREATE TABLE user_auth_credentials (
@@ -209,77 +171,23 @@ CREATE TABLE user_auth_credentials (
 );
 ```
 
-## Getting Started
+### user_passkey_params
 
-### Prerequisites
+Stores PRF extension parameters for encryption key derivation:
 
-- Node.js 18.17 or later
-- npm 9 or later
-- A Supabase project (for authentication and database)
-
-### Installation
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/helvety/helvety-auth.git
-   cd helvety-auth
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-3. Set up environment variables (see [Environment Variables](#environment-variables) below)
-
-4. Run the development server:
-
-   ```bash
-   npm run dev
-   ```
-
-5. Open [http://localhost:3001](http://localhost:3001) in your browser (note: runs on port 3001 by default)
-
-## Environment Variables
-
-Copy `env.template` to `.env.local` and fill in the required values:
-
-```bash
-cp env.template .env.local
+```sql
+CREATE TABLE user_passkey_params (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  credential_id TEXT NOT NULL,
+  prf_salt TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, credential_id)
+);
 ```
 
-### Required Variables
-
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_SUPABASE_PROJECT_URL` | Your Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/publishable key (safe for browser) |
-| `SUPABASE_SECRET_KEY` | Supabase service role key (server-only, never expose to client) |
-
-See `env.template` for the full list with descriptions.
-
-## Configuration
-
-### Supabase Setup
-
-1. Create a new project at [supabase.com](https://supabase.com)
-2. Run the database migrations to create the `user_auth_credentials` table (see [Database Schema](#database-schema))
-3. Configure Row Level Security (RLS) policies for the credentials table
-4. Set up email templates in the Supabase dashboard (see `emails/` directory for templates)
-5. Configure the site URL to `https://auth.helvety.com` (or `http://localhost:3001` for development)
-
-### Email Templates
-
-Copy the HTML files from the `emails/` directory to your Supabase project's email templates:
-
-- `confirmSignUp.html` - Email confirmation
-- `magicLink.html` - Magic link sign-in
-- `resetPassword.html` - Password/passkey recovery
-- `changeEmailAddress.html` - Email change confirmation
-- `inviteUser.html` - User invitation
-- `reauthentication.html` - Re-authentication verification
+**Note:** The `prf_salt` is used during PRF evaluation to derive the encryption key. The actual encryption key is never stored—it's derived client-side during passkey authentication.
 
 ## Security Considerations
 
@@ -304,44 +212,39 @@ Invalid redirect URIs are rejected, and the user is redirected to `helvety.com` 
 
 ### End-to-End Encryption Setup
 
-After passkey authentication, new users are guided to set up encryption:
+After passkey authentication, new users are guided through a two-step encryption setup:
 
-- **Encryption Passkey** - A separate passkey is created using the WebAuthn PRF (Pseudo-Random Function) extension
+**Step 1: Create Passkey (Registration)**
+- User creates a passkey with their phone via QR code + biometrics
+- The passkey is registered with the WebAuthn PRF extension enabled
+- Server stores the credential and PRF salt parameters
+
+**Step 2: Sign In with Passkey (Verification)**
+- User authenticates with the newly created passkey
+- PRF extension derives a deterministic output from the passkey
+- Client-side HKDF derives the encryption key from PRF output
+- Encryption key is used to encrypt/decrypt user data
+
+**Key Features:**
+- **Encryption Passkey** - A passkey created using the WebAuthn PRF (Pseudo-Random Function) extension
 - **Key Derivation** - Encryption keys are derived client-side from the PRF output using HKDF
 - **Zero-Knowledge** - The server stores only PRF parameters (salt values); encryption keys are never transmitted
 - **Cross-App Support** - Encryption passkeys work across all `*.helvety.com` apps (registered to `helvety.com` RP ID)
 
 Browser requirements for encryption:
 
-- Chrome 128+
-- Edge 128+
-- Safari 18+
+**Desktop:**
+- Chrome 128+ or Edge 128+
+- Safari 18+ on Mac
 - Firefox 139+ (desktop only)
+
+**Mobile:**
+- iPhone with iOS 18+
+- Android 14+ with Chrome
 
 **Note:** Firefox for Android does not support the PRF extension.
 
-## Testing
-
-This project uses Vitest for unit tests and Playwright for end-to-end tests.
-
-```bash
-# Run unit tests in watch mode
-npm run test
-
-# Run unit tests once
-npm run test:run
-
-# Run with coverage
-npm run test:coverage
-
-# Run E2E tests
-npm run test:e2e
-
-# Run E2E tests with UI
-npm run test:e2e:ui
-```
-
-See `__tests__/README.md` for testing patterns and conventions.
+**Legal Pages:** Privacy Policy, Terms of Service, and Impressum are hosted centrally on [helvety.com](https://helvety.com) and linked from the navbar.
 
 ## Developer
 
@@ -351,8 +254,18 @@ For questions or inquiries, please contact us at [contact@helvety.com](mailto:co
 
 ## License & Usage
 
-This repository is public for transparency purposes only. All code is open for inspection so users can verify its behavior.
+> **This is NOT open source software.**
 
-**All Rights Reserved.** No license is granted. You may view the code, but you may not copy, reuse, redistribute, modify, or sell it without explicit written permission.
+This repository is public **for transparency purposes only** so users can verify the application's behavior and security.
 
-See [LICENSE](./LICENSE) for full terms.
+**All Rights Reserved.** No license is granted for any use of this code. You may:
+- View and inspect the code
+
+You may NOT:
+- Clone, copy, or download this code for any purpose
+- Modify, adapt, or create derivative works
+- Redistribute or share this code
+- Use this code in your own projects
+- Run this code locally or on your own servers
+
+See [LICENSE](./LICENSE) for full legal terms.

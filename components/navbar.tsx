@@ -10,6 +10,7 @@ import {
   Settings,
   Github,
   Info,
+  Menu,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -36,6 +37,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import {
   Tooltip,
   TooltipContent,
@@ -64,6 +72,7 @@ export function Navbar() {
   const supabase = createClient();
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -266,6 +275,39 @@ export function Navbar() {
                 </PopoverContent>
               </Popover>
             )}
+
+            {/* Mobile burger menu */}
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild className="md:hidden">
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Open menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right">
+                <SheetHeader>
+                  <SheetTitle>Navigation</SheetTitle>
+                </SheetHeader>
+                <nav className="mt-6 flex flex-col gap-2">
+                  {navLinks.map((link) => {
+                    const Icon = link.icon;
+                    return (
+                      <a
+                        key={link.href}
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:bg-accent flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {link.label}
+                      </a>
+                    );
+                  })}
+                </nav>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </nav>

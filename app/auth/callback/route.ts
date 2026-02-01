@@ -17,9 +17,13 @@ import type { EmailOtpType } from "@supabase/supabase-js";
  * It exchanges the auth code for a session and redirects to the appropriate destination.
  *
  * After successful auth, checks if user has passkey and encryption:
- * - If no passkey: redirects to login with step=passkey-setup
+ * - If no passkey: redirects to login with step=encryption-setup (new user flow)
  * - If has passkey but no encryption: redirects to login with step=encryption-setup
- * - If has passkey and encryption: redirects to login with step=passkey-signin
+ * - If has passkey and encryption AND passkey_verified=true: redirects to final destination
+ * - If has passkey and encryption but NO passkey_verified: redirects to passkey-signin step
+ *
+ * The passkey_verified param is set by verifyPasskeyAuthentication to indicate the user
+ * has completed passkey auth (as opposed to just email verification).
  *
  * Supports redirect_uri query param for cross-app SSO flows.
  * Redirect URIs are validated against an allowlist to prevent open redirects.
@@ -30,9 +34,19 @@ export async function GET(request: Request) {
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type");
   const rawRedirectUri = searchParams.get("redirect_uri");
+  const passkeyVerified = searchParams.get("passkey_verified") === "true";
 
   // Validate redirect URI against allowlist (prevents open redirect attacks)
   const safeRedirectUri = getSafeRedirectUri(rawRedirectUri, null);
+
+  // Helper to get final redirect URL
+  const getFinalRedirectUrl = () => {
+    if (safeRedirectUri) {
+      return safeRedirectUri;
+    }
+    // Default to helvety.com (works in both dev and prod)
+    return "https://helvety.com";
+  };
 
   // Helper to build login redirect with passkey step
   const buildPasskeyRedirect = async (
@@ -62,23 +76,28 @@ export async function GET(request: Request) {
     } else if (!hasEncryption) {
       // Has passkey but no encryption - needs encryption setup only
       step = "encryption-setup";
+    } else if (passkeyVerified) {
+      // User has passkey + encryption AND just completed passkey auth
+      // Redirect to final destination
+      return getFinalRedirectUrl();
     } else {
-      // Has everything - just sign in
+      // User has passkey + encryption but hasn't done passkey auth yet
+      // (this is after email verification for returning users)
       step = "passkey-signin";
     }
 
-    // Build redirect URL with step parameter
+    // Redirect to login with appropriate step
     const loginUrl = new URL(`${origin}/login`);
     loginUrl.searchParams.set("step", step);
-
+    // Pass user status to frontend for stepper display
+    loginUrl.searchParams.set("is_new_user", hasPasskey ? "false" : "true");
     if (safeRedirectUri) {
       loginUrl.searchParams.set("redirect_uri", safeRedirectUri);
     }
-
     return loginUrl.toString();
   };
 
-  // Helper to build error/fallback redirect URL preserving redirect_uri
+  // Helper to build error/fallback redirect URL preserving redirect_uri and passkey_verified
   const buildErrorRedirect = (error?: string) => {
     const loginUrl = new URL(`${origin}/login`);
     if (error) {
@@ -86,6 +105,9 @@ export async function GET(request: Request) {
     }
     if (safeRedirectUri) {
       loginUrl.searchParams.set("redirect_uri", safeRedirectUri);
+    }
+    if (passkeyVerified) {
+      loginUrl.searchParams.set("passkey_verified", "true");
     }
     return loginUrl.toString();
   };

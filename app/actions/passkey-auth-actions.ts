@@ -27,7 +27,6 @@ import type {
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
   AuthenticatorTransportFuture,
-  AuthenticationExtensionsClientInputs,
 } from "@simplewebauthn/server";
 
 // =============================================================================
@@ -345,9 +344,9 @@ export async function generatePasskeyRegistrationOptions(
     const opts: GenerateRegistrationOptionsOpts = {
       rpName: RP_NAME,
       rpID: rpId,
-      userName: user.id, // Use ID as unique identifier
-      userDisplayName: "Helvety User",
-      userID: new TextEncoder().encode(user.id),
+      userName: user.email ?? user.id, // Show email in passkey dialog
+      userDisplayName: user.email ?? "Helvety User",
+      userID: new TextEncoder().encode(user.id), // Keep UUID for internal WebAuthn ID
       attestationType: "none",
       excludeCredentials,
       authenticatorSelection: {
@@ -366,17 +365,11 @@ export async function generatePasskeyRegistrationOptions(
     const prfSalt = generatePRFSalt();
 
     // Add hints to prefer phone/hybrid authenticators over USB security keys
-    // Add PRF extension for encryption
-    const optionsWithExtensions = {
+    // Note: PRF extension is added client-side in encryption-setup.tsx since
+    // Uint8Array cannot be serialized from server to client components
+    const optionsWithHints = {
       ...options,
       hints: ["hybrid"] as ("hybrid" | "security-key" | "client-device")[],
-      extensions: {
-        prf: {
-          eval: {
-            first: Buffer.from(prfSalt, "base64"),
-          },
-        },
-      } as AuthenticationExtensionsClientInputs,
     };
 
     // Store challenge and PRF salt for verification
@@ -388,7 +381,7 @@ export async function generatePasskeyRegistrationOptions(
 
     return {
       success: true,
-      data: { ...optionsWithExtensions, prfSalt },
+      data: { ...optionsWithHints, prfSalt },
     };
   } catch (error) {
     logger.error("Error generating registration options:", error);
@@ -695,10 +688,14 @@ export async function verifyPasskeyAuthentication(
 
     // Generate a magic link for the user
     // This creates a one-time use link that creates a session when clicked
+    // Include passkey_verified=true to indicate passkey auth is complete
     // Include redirect_uri in the callback URL if provided
-    const callbackUrl = storedData.redirectUri
-      ? `${origin}/auth/callback?redirect_uri=${encodeURIComponent(storedData.redirectUri)}`
-      : `${origin}/auth/callback`;
+    const callbackParams = new URLSearchParams();
+    callbackParams.set("passkey_verified", "true");
+    if (storedData.redirectUri) {
+      callbackParams.set("redirect_uri", storedData.redirectUri);
+    }
+    const callbackUrl = `${origin}/auth/callback?${callbackParams.toString()}`;
 
     const { data: linkData, error: linkError } =
       await adminClient.auth.admin.generateLink({

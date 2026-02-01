@@ -82,12 +82,8 @@ export function EncryptionSetup({
   onComplete,
 }: EncryptionSetupProps) {
   const router = useRouter();
-  const {
-    prfSupported,
-    prfSupportInfo,
-    checkPRFSupport,
-    isLoading: contextLoading,
-  } = useEncryptionContext();
+  const { prfSupported, prfSupportInfo, checkPRFSupport } =
+    useEncryptionContext();
 
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -306,7 +302,7 @@ export function EncryptionSetup({
   };
 
   // Show loading while checking PRF support
-  if (isCheckingSupport || contextLoading) {
+  if (isCheckingSupport) {
     return (
       <div className="flex w-full max-w-md flex-col items-center">
         <AuthStepper flowType={flowType} currentStep="create_passkey" />

@@ -26,12 +26,12 @@ interface StepConfig {
 const FLOW_STEPS: Record<AuthFlowType, StepConfig[]> = {
   new_user: [
     { id: "email", label: "Email" },
-    { id: "create_passkey", label: "Setup Passkey" },
-    { id: "verify_encryption", label: "Verify" },
+    { id: "create_passkey", label: "Passkey Setup" },
+    { id: "verify_encryption", label: "Passkey Sign In" },
   ],
   returning_user: [
     { id: "email", label: "Email" },
-    { id: "sign_in", label: "Unlock" },
+    { id: "sign_in", label: "Passkey Sign In" },
   ],
 };
 
@@ -79,18 +79,41 @@ export function AuthStepper({
 
   return (
     <div className={cn("mx-auto mb-6 w-full max-w-md", className)}>
-      <div className="flex items-center justify-center">
+      <div
+        className="grid"
+        style={{ gridTemplateColumns: `repeat(${steps.length}, 1fr)` }}
+      >
         {steps.map((step, index) => {
           const isComplete = index < currentIndex;
           const isCurrent = index === currentIndex;
           const isLast = index === steps.length - 1;
 
           return (
-            <div key={step.id} className="flex items-center">
-              <div className="flex flex-col items-center">
+            <div key={step.id} className="flex flex-col items-center">
+              {/* Step circle with connector line */}
+              <div className="relative flex w-full items-center justify-center">
+                {/* Left connector - stops at circle edge */}
+                {index > 0 && (
+                  <div
+                    className={cn(
+                      "absolute left-0 h-0.5 w-[calc(50%-24px)]",
+                      index <= currentIndex ? "bg-primary" : "bg-muted"
+                    )}
+                  />
+                )}
+                {/* Right connector - starts at circle edge */}
+                {!isLast && (
+                  <div
+                    className={cn(
+                      "absolute left-[calc(50%+24px)] h-0.5 w-[calc(50%-24px)]",
+                      isComplete ? "bg-primary" : "bg-muted"
+                    )}
+                  />
+                )}
+                {/* Circle */}
                 <div
                   className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium transition-colors",
+                    "relative z-10 flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium transition-colors",
                     isComplete && "bg-primary text-primary-foreground",
                     isCurrent &&
                       "bg-primary/20 text-primary border-primary border-2",
@@ -101,26 +124,18 @@ export function AuthStepper({
                 >
                   {isComplete ? <Check className="h-5 w-5" /> : index + 1}
                 </div>
-                <span
-                  className={cn(
-                    "mt-2 text-xs whitespace-nowrap",
-                    isCurrent
-                      ? "text-primary font-medium"
-                      : "text-muted-foreground"
-                  )}
-                >
-                  {step.label}
-                </span>
               </div>
-
-              {!isLast && (
-                <div
-                  className={cn(
-                    "mx-2 mb-6 h-0.5 w-12",
-                    isComplete ? "bg-primary" : "bg-muted"
-                  )}
-                />
-              )}
+              {/* Label */}
+              <span
+                className={cn(
+                  "mt-2 text-center text-xs",
+                  isCurrent
+                    ? "text-primary font-medium"
+                    : "text-muted-foreground"
+                )}
+              >
+                {step.label}
+              </span>
             </div>
           );
         })}

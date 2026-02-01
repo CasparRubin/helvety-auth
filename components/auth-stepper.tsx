@@ -15,11 +15,17 @@ interface StepConfig {
   label: string;
 }
 
-/** Steps for the email + passkey auth flow */
-const STEPS: StepConfig[] = [
-  { id: "email", label: "Enter Email" },
-  { id: "verify", label: "Verify Email" },
-  { id: "passkey", label: "Passkey" },
+/** Steps for new users: Email → Passkey Setup → Passkey Sign In */
+const NEW_USER_STEPS: StepConfig[] = [
+  { id: "email", label: "Email" },
+  { id: "verify", label: "Passkey Setup" },
+  { id: "passkey", label: "Passkey Sign In" },
+];
+
+/** Steps for returning users: Email → Passkey Sign In */
+const RETURNING_USER_STEPS: StepConfig[] = [
+  { id: "email", label: "Email" },
+  { id: "passkey", label: "Passkey Sign In" },
 ];
 
 /**
@@ -28,32 +34,63 @@ const STEPS: StepConfig[] = [
 interface AuthStepperProps {
   /** The current step in the flow */
   currentStep: AuthStep;
+  /** Whether this is a returning user (has passkey) - shows 2 steps instead of 3 */
+  isReturningUser?: boolean;
   /** Optional className for the container */
   className?: string;
 }
 
 /**
  * Stepper component for the email + passkey authentication flow.
- * Shows progress through: Enter Email -> Verify Email -> Passkey
+ * Shows progress through:
+ * - New users: Email → Passkey Setup → Passkey Sign In
+ * - Returning users: Email → Passkey Sign In
  */
-export function AuthStepper({ currentStep, className }: AuthStepperProps) {
-  const currentIndex = STEPS.findIndex((s) => s.id === currentStep);
+export function AuthStepper({
+  currentStep,
+  isReturningUser = false,
+  className,
+}: AuthStepperProps) {
+  const steps = isReturningUser ? RETURNING_USER_STEPS : NEW_USER_STEPS;
+  const currentIndex = steps.findIndex((s) => s.id === currentStep);
 
   return (
     <div className={cn("mx-auto mb-6 w-full max-w-md", className)}>
-      <div className="flex items-center justify-center">
-        {STEPS.map((step, index) => {
+      <div
+        className="grid"
+        style={{ gridTemplateColumns: `repeat(${steps.length}, 1fr)` }}
+      >
+        {steps.map((step, index) => {
           const isComplete = index < currentIndex;
           const isCurrent = index === currentIndex;
-          const isLast = index === STEPS.length - 1;
+          const isLast = index === steps.length - 1;
 
           return (
-            <div key={step.id} className="flex items-center">
-              {/* Step circle and label */}
-              <div className="flex flex-col items-center">
+            <div key={step.id} className="flex flex-col items-center">
+              {/* Step circle with connector line */}
+              <div className="relative flex w-full items-center justify-center">
+                {/* Left connector - stops at circle edge */}
+                {index > 0 && (
+                  <div
+                    className={cn(
+                      "absolute left-0 h-0.5 w-[calc(50%-24px)]",
+                      index <= currentIndex ? "bg-primary" : "bg-muted"
+                    )}
+                  />
+                )}
+                {/* Right connector - starts at circle edge */}
+                {!isLast && (
+                  <div
+                    className={cn(
+                      "absolute left-[calc(50%+24px)] h-0.5 w-[calc(50%-24px)]",
+                      isComplete ? "bg-primary" : "bg-muted"
+                    )}
+                  />
+                )}
+                {/* Circle */}
                 <div
                   className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium transition-colors",
+                    "relative z-10 flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium transition-colors",
                     isComplete && "bg-primary text-primary-foreground",
                     isCurrent &&
                       "bg-primary/20 text-primary border-primary border-2",
@@ -64,27 +101,18 @@ export function AuthStepper({ currentStep, className }: AuthStepperProps) {
                 >
                   {isComplete ? <Check className="h-5 w-5" /> : index + 1}
                 </div>
-                <span
-                  className={cn(
-                    "mt-2 text-xs whitespace-nowrap",
-                    isCurrent
-                      ? "text-primary font-medium"
-                      : "text-muted-foreground"
-                  )}
-                >
-                  {step.label}
-                </span>
               </div>
-
-              {/* Connector line */}
-              {!isLast && (
-                <div
-                  className={cn(
-                    "mx-2 mb-6 h-0.5 w-12",
-                    isComplete ? "bg-primary" : "bg-muted"
-                  )}
-                />
-              )}
+              {/* Label */}
+              <span
+                className={cn(
+                  "mt-2 text-center text-xs",
+                  isCurrent
+                    ? "text-primary font-medium"
+                    : "text-muted-foreground"
+                )}
+              >
+                {step.label}
+              </span>
             </div>
           );
         })}

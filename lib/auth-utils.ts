@@ -13,6 +13,14 @@ import {
 /** The authentication step the user needs to complete */
 export type AuthStep = "encryption-setup" | "passkey-signin" | "complete";
 
+/**
+ * Determines the final redirect destination
+ * Always redirects to helvety.com when no redirect_uri is provided
+ */
+export function getFinalRedirectUrl(redirectUri?: string | null): string {
+  return redirectUri ?? "https://helvety.com";
+}
+
 /** Result of checking the required auth step */
 export interface AuthStepResult {
   step: AuthStep;
@@ -29,7 +37,10 @@ export interface AuthStepResult {
  * Logic:
  * - No passkey: needs encryption-setup (which includes passkey creation)
  * - Has passkey but no encryption: needs encryption-setup
- * - Has both: needs passkey-signin (or complete if already signed in with passkey)
+ * - Has both: needs passkey-signin (to authenticate with passkey)
+ *
+ * Note: After passkey auth completes, the callback receives `passkey_verified=true`
+ * which triggers redirect to final destination instead of showing passkey-signin again.
  */
 export async function getRequiredAuthStep(
   userId: string
@@ -51,7 +62,7 @@ export async function getRequiredAuthStep(
     // Has passkey but no encryption - needs encryption setup only
     step = "encryption-setup";
   } else {
-    // Has everything - needs to sign in with passkey
+    // Has everything - needs to authenticate with passkey
     step = "passkey-signin";
   }
 

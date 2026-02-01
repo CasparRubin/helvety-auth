@@ -5,7 +5,6 @@ import {
   startAuthentication,
 } from "@simplewebauthn/browser";
 import { Loader2, ArrowLeft, Mail, KeyRound, CheckCircle2 } from "lucide-react";
-import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense, useCallback } from "react";
 
@@ -61,6 +60,7 @@ function LoginContent() {
   const redirectUri = searchParams.get("redirect_uri");
   const stepParam = searchParams.get("step") as LoginStep | null;
   const authError = searchParams.get("error");
+  const isNewUserParam = searchParams.get("is_new_user");
 
   // Compute initial step from URL or default to email
   const initialStep: LoginStep =
@@ -123,13 +123,14 @@ function LoginContent() {
           return;
         }
 
-        // User has completed all auth steps (passkey + encryption)
-        // This shouldn't normally happen since passkey-signin step handles the final redirect
-        // But as a fallback, redirect to destination
+        // requiredStep is "complete" - user has everything set up
+        // This shouldn't normally happen (callback handles this),
+        // but as a fallback, redirect to final destination
         if (redirectUri) {
           window.location.href = redirectUri;
           return;
-        } else if (process.env.NODE_ENV === "production") {
+        } else {
+          // Default to helvety.com when no redirect_uri is provided
           window.location.href = "https://helvety.com";
           return;
         }
@@ -332,35 +333,27 @@ function LoginContent() {
     return "passkey";
   })();
 
+  // Determine if this is a returning user (has passkey) for stepper display
+  // Default to new user (false) if not specified
+  const isReturningUser = isNewUserParam === "false";
+
   return (
     <div className="flex min-h-screen flex-col items-center px-4 pt-8 md:pt-16 lg:pt-24">
-      {/* Logo */}
-      <a
-        href="https://helvety.com"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mb-8 transition-opacity hover:opacity-80"
-      >
-        <Image
-          src="/logo_whiteBg.svg"
-          alt="Helvety"
-          width={150}
-          height={40}
-          className="h-10 w-auto"
-          priority
-        />
-      </a>
-
       <div className="flex w-full max-w-md flex-col items-center space-y-6">
-        {/* Show stepper */}
-        <AuthStepper currentStep={currentAuthStep} />
+        {/* Show stepper - hidden when EncryptionSetup is shown (it has its own stepper) */}
+        {step !== "encryption-setup" && (
+          <AuthStepper
+            currentStep={currentAuthStep}
+            isReturningUser={isReturningUser}
+          />
+        )}
 
         {/* Show encryption setup component for encryption-setup step */}
         {step === "encryption-setup" && userId && (
           <EncryptionSetup
             userId={userId}
             userEmail={email}
-            flowType="new_user"
+            flowType={isReturningUser ? "returning_user" : "new_user"}
             redirectUri={redirectUri ?? undefined}
             onComplete={() => {
               // Redirect to destination after encryption setup

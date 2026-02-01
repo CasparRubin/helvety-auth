@@ -76,11 +76,19 @@ export function AuthTokenHandler() {
           return;
         }
 
-        // Check what auth step the user needs to complete
-        const { step } = await getRequiredAuthStep(user.id);
+        // Check for passkey_verified param (indicates passkey auth is complete)
+        const passkeyVerified = searchParams.get("passkey_verified") === "true";
 
-        // Always redirect to /login with the appropriate step
-        // The login page will handle the final redirect to redirectUri after passkey flow
+        // Check what auth step the user needs to complete
+        const { step, hasPasskey, hasEncryption } = await getRequiredAuthStep(user.id);
+
+        // If passkey auth is verified and user has everything set up, redirect to final destination
+        if (passkeyVerified && hasPasskey && hasEncryption) {
+          window.location.href = redirectUri ?? "https://helvety.com";
+          return;
+        }
+
+        // User needs to complete setup or passkey auth
         const loginUrl = buildLoginUrl(step, redirectUri);
         window.location.href = loginUrl;
       } catch (err) {
