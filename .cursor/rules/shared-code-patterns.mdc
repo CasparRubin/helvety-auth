@@ -13,7 +13,7 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, and helvet
 
 - `lib/utils.ts` (cn, generateSecureId)
 - `lib/logger.ts`
-- `lib/constants.ts`
+- `lib/constants.ts` (only `TOAST_DURATIONS` must be identical; app-specific constants are allowed)
 
 ### Crypto Module (must be identical)
 
@@ -26,13 +26,11 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, and helvet
 - `lib/crypto/prf-key-derivation.ts`
 - `lib/crypto/types.ts`
 
-### Auth Utilities (must be identical)
+### Auth Utilities (must be identical across repos that use them)
 
 - `lib/auth-errors.ts`
-- `lib/auth-guard.ts`
 - `lib/auth-logger.ts`
 - `lib/auth-redirect.ts`
-- `lib/redirect-validation.ts`
 - `lib/rate-limit.ts`
 - `lib/csrf.ts`
 
@@ -41,8 +39,6 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, and helvet
 - `components/theme-provider.tsx`
 - `components/theme-switcher.tsx`
 - `components/app-switcher.tsx`
-- `components/encryption-gate.tsx`
-- `components/encryption-unlock.tsx`
 
 ## App-Specific Code
 

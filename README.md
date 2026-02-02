@@ -23,7 +23,7 @@ Helvety Auth (`auth.helvety.com`) handles all authentication for Helvety applica
 - **Language**: TypeScript
 - **Authentication**: Supabase Auth + SimpleWebAuthn
 - **Styling**: Tailwind CSS 4 + shadcn/ui
-- **Testing**: Vitest + Playwright
+- **Testing**: Vitest
 - **Deployment**: Vercel
 
 ## Authentication Flows

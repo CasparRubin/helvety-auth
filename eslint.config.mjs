@@ -156,17 +156,6 @@ const eslintConfig = defineConfig([
       "jsdoc/check-param-names": "off",
     },
   },
-  // E2E test rules (Playwright - no testing-library)
-  {
-    files: ["e2e/**/*.{ts,tsx}"],
-    rules: {
-      // Relax JSDoc for e2e test files
-      "jsdoc/require-jsdoc": "off",
-      "jsdoc/require-param": "off",
-      "jsdoc/require-returns": "off",
-      "jsdoc/check-param-names": "off",
-    },
-  },
   globalIgnores([
     ".next/**",
     "out/**",

@@ -13,9 +13,7 @@ node_modules
 
 # testing
 /coverage
-/playwright-report
 /test-results
-/.playwright
 
 # next.js
 /.next/
@@ -60,3 +58,6 @@ next-env.d.ts
 # lock files (using npm)
 bun.lock
 *.lock-*.tmp
+
+# playwright
+/playwright-report/

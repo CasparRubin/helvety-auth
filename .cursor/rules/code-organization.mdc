@@ -56,7 +56,30 @@ lib/              # Shared utilities (NO React components here)
 ## Barrel Exports
 
 Use `index.ts` barrel exports for:
+- `app/actions/index.ts` - all server actions
 - `components/ui/index.ts` - all UI components
 - `lib/types/index.ts` - all shared types
 - `lib/crypto/index.ts` - public crypto API
 - `hooks/index.ts` - all hooks
+
+## Component Subfolder Organization
+
+When a feature has 5+ related components, group them in a subfolder with a barrel export:
+
+```
+components/
+  [feature]/           # e.g., account/, products/
+    index.ts           # Barrel export for the feature
+    feature-list.tsx
+    feature-item.tsx
+    feature-form.tsx
+```
+
+Example barrel export (`components/account/index.ts`):
+```typescript
+export { ProfileTab } from "./profile-tab";
+export { SubscriptionsTab } from "./subscriptions-tab";
+export { TenantsTab } from "./tenants-tab";
+```
+
+This keeps imports clean: `import { ProfileTab } from "@/components/account"`

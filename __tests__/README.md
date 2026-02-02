@@ -6,10 +6,23 @@ This document describes the testing patterns and conventions used in this projec
 
 ```
 __tests__/
+├── app/                  # Tests for app/ directory
+│   └── actions/          # Server action tests
 ├── components/           # Component tests
 ├── lib/                  # Library/utility tests
 │   ├── crypto/           # Encryption utility tests
-│   └── auth/             # Authentication utility tests (csrf, rate-limit, auth-errors, auth-guard)
+│   │   ├── encoding.test.ts
+│   │   ├── encryption.test.ts
+│   │   ├── key-storage.test.ts
+│   │   ├── passkey.test.ts
+│   │   └── prf-key-derivation.test.ts
+│   ├── auth-errors.test.ts
+│   ├── auth-logger.test.ts
+│   ├── auth-utils.test.ts
+│   ├── csrf.test.ts
+│   ├── env-validation.test.ts
+│   ├── rate-limit.test.ts
+│   └── redirect-validation.test.ts
 └── utils/                # Test utilities
     ├── test-utils.tsx    # Custom render with providers
     └── mock-factories.ts # Test data factories
@@ -18,7 +31,6 @@ __tests__/
 ## Test File Naming
 
 - Unit tests: `*.test.ts` or `*.test.tsx`
-- E2E tests: `*.spec.ts` (in `e2e/` directory)
 
 ## Running Tests
 
@@ -34,10 +46,6 @@ npm run test:coverage
 
 # Run specific test file
 npm run test -- path/to/file.test.ts
-
-# E2E tests
-npm run test:e2e
-npm run test:e2e:ui  # With Playwright UI
 ```
 
 ## Test Structure
