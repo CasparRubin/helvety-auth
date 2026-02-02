@@ -289,8 +289,8 @@ function LoginContent() {
         return;
       }
 
-      // Redirect to auth URL to complete session creation
-      window.location.href = verifyResult.data.authUrl;
+      // Redirect to final destination (session already created server-side)
+      window.location.href = verifyResult.data.redirectUrl;
     } catch (err) {
       logger.error("Passkey auth error:", err);
       setError("An unexpected error occurred");

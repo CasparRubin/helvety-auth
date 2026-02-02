@@ -17,6 +17,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 import type { UserAuthCredential } from "@/lib/types";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import type {
   GenerateRegistrationOptionsOpts,
   GenerateAuthenticationOptionsOpts,
@@ -670,8 +671,8 @@ export async function generatePasskeyAuthOptions(
  * Verify passkey authentication and create a session
  * Called after the user completes the WebAuthn authentication ceremony
  *
- * After successful passkey verification, this generates a magic link that
- * the client will use to complete authentication with Supabase.
+ * After successful passkey verification, this verifies a magic link token
+ * server-side to create the session immediately, then returns a redirect URL.
  *
  * Security:
  * - Rate limited to prevent brute force attacks
@@ -680,16 +681,15 @@ export async function generatePasskeyAuthOptions(
  *
  * @param response - The authentication response from the browser
  * @param origin - The origin URL
- * @returns Success status with auth link URL and optional redirect URI
+ * @returns Success status with redirect URL to final destination
  */
 export async function verifyPasskeyAuthentication(
   response: AuthenticationResponseJSON,
   origin: string
 ): Promise<
   PasskeyActionResponse<{
-    authUrl: string;
+    redirectUrl: string;
     userId: string;
-    redirectUri?: string;
   }>
 > {
   const clientIP = await getClientIP();
@@ -804,28 +804,30 @@ export async function verifyPasskeyAuthentication(
       return { success: false, error: "User has no email" };
     }
 
-    // Generate a magic link for the user
-    // This creates a one-time use link that creates a session when clicked
-    // Include passkey_verified=true to indicate passkey auth is complete
-    // Include redirect_uri in the callback URL if provided
-    const callbackParams = new URLSearchParams();
-    callbackParams.set("passkey_verified", "true");
-    if (storedData.redirectUri) {
-      callbackParams.set("redirect_uri", storedData.redirectUri);
-    }
-    const callbackUrl = `${origin}/auth/callback?${callbackParams.toString()}`;
-
+    // Generate a magic link for the user and verify it server-side immediately
+    // This creates the session directly without requiring client navigation to Supabase
+    // which would lose the session tokens in hash fragments during server redirect
     const { data: linkData, error: linkError } =
       await adminClient.auth.admin.generateLink({
         type: "magiclink",
         email: userData.user.email,
-        options: {
-          redirectTo: callbackUrl,
-        },
       });
 
-    if (linkError || !linkData.properties?.action_link) {
+    if (linkError || !linkData.properties?.hashed_token) {
       logger.error("Error generating auth link:", linkError);
+      return { success: false, error: "Failed to create session" };
+    }
+
+    // Verify the magic link token server-side to create the session immediately
+    // This avoids the PKCE/hash fragment issue where tokens are lost on server redirect
+    const supabase = await createClient();
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      token_hash: linkData.properties.hashed_token,
+      type: linkData.properties.verification_type as EmailOtpType,
+    });
+
+    if (verifyError) {
+      logger.error("Error verifying OTP:", verifyError);
       return { success: false, error: "Failed to create session" };
     }
 
@@ -840,13 +842,13 @@ export async function verifyPasskeyAuthentication(
       ip: clientIP,
     });
 
-    // Return the action link - client will navigate to this to complete auth
+    // Return the redirect URL - session is already set via cookies
+    const redirectUrl = storedData.redirectUri ?? "https://helvety.com";
     return {
       success: true,
       data: {
-        authUrl: linkData.properties.action_link,
+        redirectUrl,
         userId: credential.user_id,
-        redirectUri: storedData.redirectUri,
       },
     };
   } catch (error) {

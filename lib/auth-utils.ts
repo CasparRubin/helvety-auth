@@ -39,8 +39,8 @@ export interface AuthStepResult {
  * - Has passkey but no encryption: needs encryption-setup
  * - Has both: needs passkey-signin (to authenticate with passkey)
  *
- * Note: After passkey auth completes, the callback receives `passkey_verified=true`
- * which triggers redirect to final destination instead of showing passkey-signin again.
+ * Note: After passkey auth completes, the session is created directly server-side
+ * in verifyPasskeyAuthentication() and the user is redirected to their destination.
  */
 export async function getRequiredAuthStep(
   userId: string

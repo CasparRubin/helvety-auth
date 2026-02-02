@@ -13,17 +13,17 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 /**
  * Auth callback route for handling Supabase magic links and OAuth
  *
- * This route is called when users click magic links or complete OAuth flows.
+ * This route is called when users click email magic links or complete OAuth flows.
  * It exchanges the auth code for a session and redirects to the appropriate destination.
  *
- * After successful auth, checks if user has passkey and encryption:
+ * NOTE: This route is NOT used for passkey sign-in. Passkey authentication creates
+ * the session directly server-side in verifyPasskeyAuthentication() and returns
+ * a redirect URL to the client without going through this callback.
+ *
+ * After successful email auth, checks if user has passkey and encryption:
  * - If no passkey: redirects to login with step=encryption-setup (new user flow)
  * - If has passkey but no encryption: redirects to login with step=encryption-setup
- * - If has passkey and encryption AND passkey_verified=true: redirects to final destination
- * - If has passkey and encryption but NO passkey_verified: redirects to passkey-signin step
- *
- * The passkey_verified param is set by verifyPasskeyAuthentication to indicate the user
- * has completed passkey auth (as opposed to just email verification).
+ * - If has passkey and encryption: redirects to passkey-signin step
  *
  * Supports redirect_uri query param for cross-app SSO flows.
  * Redirect URIs are validated against an allowlist to prevent open redirects.
@@ -77,8 +77,10 @@ export async function GET(request: Request) {
       // Has passkey but no encryption - needs encryption setup only
       step = "encryption-setup";
     } else if (passkeyVerified) {
-      // User has passkey + encryption AND just completed passkey auth
-      // Redirect to final destination
+      // Legacy fallback: passkey_verified param present
+      // Note: Passkey auth now creates the session directly in verifyPasskeyAuthentication()
+      // and redirects without going through this callback. This check remains for backwards
+      // compatibility in case of edge cases.
       return getFinalRedirectUrl();
     } else {
       // User has passkey + encryption but hasn't done passkey auth yet

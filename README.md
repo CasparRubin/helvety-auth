@@ -75,10 +75,12 @@ sequenceDiagram
     U->>P: Scan QR code
     P->>U: Verify biometrics
     P->>A: Passkey response
-    A->>S: Verify passkey
-    S-->>A: Credential valid
+    A->>S: Verify passkey + Create session
+    S-->>A: Session created
     A-->>U: Redirect to app
 ```
+
+Note: Passkey authentication creates the session directly server-side (via `verifyOtp`) without requiring the user to navigate through an additional callback URL. This ensures reliable session creation regardless of browser PKCE support.
 
 ### Key Points
 
@@ -90,7 +92,9 @@ sequenceDiagram
 
 ### GET `/auth/callback`
 
-Handles authentication callbacks from magic links and OAuth flows. After successful email verification, redirects to the login page with the appropriate passkey step.
+Handles authentication callbacks from email magic links and OAuth flows. After successful email verification, redirects to the login page with the appropriate passkey step.
+
+**Note:** This route is NOT used for passkey sign-in. Passkey authentication creates the session directly server-side and redirects the user to their destination without going through this callback.
 
 **Query Parameters:**
 
@@ -98,7 +102,6 @@ Handles authentication callbacks from magic links and OAuth flows. After success
 - `token_hash` - Email OTP token hash
 - `type` - OTP type (magiclink, signup, recovery, invite, email_change)
 - `redirect_uri` - Where to redirect after authentication (validated against allowlist)
-- `passkey_verified` - Set to `true` when coming from successful passkey authentication
 
 **Behavior:**
 
@@ -107,7 +110,6 @@ Handles authentication callbacks from magic links and OAuth flows. After success
 - Redirects based on user status:
   - New users or missing encryption: `/login?step=encryption-setup`
   - Returning users after email verification: `/login?step=passkey-signin`
-  - After passkey verification (`passkey_verified=true`): final destination
 - If no `redirect_uri` is provided, defaults to `https://helvety.com`
 - **Always preserves `redirect_uri`** through the entire auth flow, including when handling hash fragment authentication (where tokens arrive as `#access_token=...` instead of query params)
 
