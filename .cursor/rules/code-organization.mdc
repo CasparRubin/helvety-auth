@@ -1,0 +1,62 @@
+---
+description: Code organization standards for Helvety Next.js apps
+globs: ["**/*.ts", "**/*.tsx"]
+---
+
+# Code Organization
+
+## Folder Structure
+
+```
+app/              # Next.js App Router pages and routes
+  actions/        # Server Actions
+  auth/           # Auth-related routes (callback, etc.)
+  [feature]/      # Feature-specific route folders
+
+components/       # React components
+  ui/             # shadcn/ui base components with barrel export (index.ts)
+  [feature]/      # Feature-specific component folders
+
+hooks/            # Custom React hooks
+  index.ts        # Barrel export
+
+lib/              # Shared utilities (NO React components here)
+  crypto/         # Encryption, passkeys, key derivation
+  supabase/       # Database clients (client.ts, server.ts, client-factory.ts)
+  types/          # TypeScript type definitions with index.ts barrel
+  config/         # Configuration (version.ts)
+```
+
+## Naming Conventions
+
+- **Files**: kebab-case (`auth-errors.ts`, not `authErrors.ts`)
+- **Components**: PascalCase file and export (`ThemeSwitcher.tsx` exports `ThemeSwitcher`)
+- **Hooks**: camelCase with `use` prefix (`use-auth-session.ts` exports `useAuthSession`)
+- **Functions**: camelCase (`generateSecureId`)
+- **Types/Interfaces**: PascalCase (`AuthError`, `EncryptedData`)
+- **Constants**: SCREAMING_SNAKE_CASE (`ENCRYPTION_VERSION`)
+- **Enums**: PascalCase name, SCREAMING_SNAKE_CASE values (`CryptoErrorType.ENCRYPTION_FAILED`)
+
+## Import Order (enforced by ESLint)
+
+1. Node built-ins (rarely used in browser code)
+2. External packages (`react`, `next`, `@supabase/supabase-js`)
+3. Internal (`@/lib/...`, `@/components/...`)
+4. Parent (`../`)
+5. Sibling (`./`)
+6. Types (separate `import type` statements)
+
+## Client vs Server Code
+
+- Mark client components with `"use client"` directive
+- Use `"server-only"` import for server-only code
+- Keep server actions in `app/actions/` folder
+- Supabase: use `lib/supabase/client.ts` for browser, `lib/supabase/server.ts` for server
+
+## Barrel Exports
+
+Use `index.ts` barrel exports for:
+- `components/ui/index.ts` - all UI components
+- `lib/types/index.ts` - all shared types
+- `lib/crypto/index.ts` - public crypto API
+- `hooks/index.ts` - all hooks

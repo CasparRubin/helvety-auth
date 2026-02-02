@@ -1,0 +1,45 @@
+---
+description: JSDoc style guide for Helvety codebase
+globs: ["**/*.ts", "**/*.tsx"]
+---
+
+# JSDoc Style Guide
+
+When writing JSDoc comments for this codebase:
+
+1. **Required for**: Functions, classes, interfaces, type aliases
+2. **Not required for**: Methods, constructors, test files
+3. **Content**: Description only - do NOT add @param or @returns tags
+4. **Rationale**: TypeScript provides type information; JSDoc is for human-readable descriptions
+
+## Good Example
+
+```typescript
+/**
+ * Encrypts data using AES-256-GCM with the provided key.
+ * Returns encrypted data with IV and ciphertext for storage.
+ */
+export async function encrypt(data: string, key: CryptoKey): Promise<EncryptedData>
+```
+
+## Bad Example
+
+```typescript
+/**
+ * Encrypts data.
+ * @param data - The data to encrypt
+ * @param key - The encryption key
+ * @returns The encrypted data
+ */
+```
+
+## When to Include More Detail
+
+- Complex algorithms that need explanation
+- Non-obvious side effects
+- Security-sensitive functions
+- Functions with many parameters where context helps
+
+## Exception
+
+For very complex functions with 4+ parameters where the purpose of each isn't obvious from names/types, you may include @param tags. But prefer making parameter names self-documenting first.

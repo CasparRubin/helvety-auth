@@ -1,0 +1,60 @@
+---
+description: Shared code patterns across Helvety apps
+globs: ["lib/**/*.ts", "lib/**/*.tsx", "components/**/*.tsx"]
+---
+
+# Shared Code Patterns
+
+## Files That Must Stay Synchronized
+
+These files are shared across helvety.com, helvety-auth, helvety-pdf, and helvety-store. When modifying these files, the same changes should be applied to all repos.
+
+### Core Utilities (must be identical)
+
+- `lib/utils.ts` (cn, generateSecureId)
+- `lib/logger.ts`
+- `lib/constants.ts`
+
+### Crypto Module (must be identical)
+
+- `lib/crypto/encoding.ts`
+- `lib/crypto/encryption.ts`
+- `lib/crypto/encryption-context.tsx`
+- `lib/crypto/index.ts`
+- `lib/crypto/key-storage.ts`
+- `lib/crypto/passkey.ts`
+- `lib/crypto/prf-key-derivation.ts`
+- `lib/crypto/types.ts`
+
+### Auth Utilities (must be identical)
+
+- `lib/auth-errors.ts`
+- `lib/auth-guard.ts`
+- `lib/auth-logger.ts`
+- `lib/auth-redirect.ts`
+- `lib/redirect-validation.ts`
+- `lib/rate-limit.ts`
+- `lib/csrf.ts`
+
+### Components (must be identical)
+
+- `components/theme-provider.tsx`
+- `components/theme-switcher.tsx`
+- `components/app-switcher.tsx`
+- `components/encryption-gate.tsx`
+- `components/encryption-unlock.tsx`
+
+## App-Specific Code
+
+Put app-specific utilities in appropriately named files:
+
+- **helvety-pdf**: `lib/pdf-*.ts`, `lib/file-*.ts`, `lib/memory-*.ts`
+- **helvety-store**: `lib/stripe/*.ts`, `lib/license/*.ts`, `lib/packages/*.ts`
+- **helvety-auth**: `lib/auth-utils.ts` (auth-specific, not shared)
+
+## When Adding New Shared Code
+
+1. Add to one repo first
+2. Test thoroughly
+3. Copy to all other repos
+4. Commit changes to all repos together (or sequentially)
