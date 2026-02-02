@@ -69,24 +69,27 @@ if (typeof globalThis.atob === "undefined") {
 // =============================================================================
 // WEBAUTHN MOCKS (for projects using passkeys)
 // =============================================================================
-const mockCredentialsContainer = {
-  create: vi.fn(),
-  get: vi.fn(),
-};
+// Only define browser-specific mocks when running in jsdom environment
+if (typeof window !== "undefined") {
+  const mockCredentialsContainer = {
+    create: vi.fn(),
+    get: vi.fn(),
+  };
 
-Object.defineProperty(navigator, "credentials", {
-  value: mockCredentialsContainer,
-  writable: true,
-  configurable: true,
-});
+  Object.defineProperty(navigator, "credentials", {
+    value: mockCredentialsContainer,
+    writable: true,
+    configurable: true,
+  });
 
-Object.defineProperty(window, "PublicKeyCredential", {
-  value: class MockPublicKeyCredential {
-    static isUserVerifyingPlatformAuthenticatorAvailable = vi.fn(() =>
-      Promise.resolve(true)
-    );
-    static isConditionalMediationAvailable = vi.fn(() => Promise.resolve(true));
-  },
-  writable: true,
-  configurable: true,
-});
+  Object.defineProperty(window, "PublicKeyCredential", {
+    value: class MockPublicKeyCredential {
+      static isUserVerifyingPlatformAuthenticatorAvailable = vi.fn(() =>
+        Promise.resolve(true)
+      );
+      static isConditionalMediationAvailable = vi.fn(() => Promise.resolve(true));
+    },
+    writable: true,
+    configurable: true,
+  });
+}

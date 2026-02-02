@@ -199,6 +199,24 @@ CREATE TABLE user_passkey_params (
 - **Counter Tracking** - Prevents passkey replay attacks
 - **Redirect URI Validation** - All redirect URIs are validated against a strict allowlist to prevent open redirect attacks
 
+### Security Hardening (Added Feb 2026)
+
+The auth service implements comprehensive security hardening:
+
+- **Rate Limiting** - Protection against brute force attacks:
+  - Magic link requests: 3 per 5 minutes per email, 9 per 5 minutes per IP
+  - Passkey authentication: 10 per minute per IP
+  - Rate limits reset on successful authentication
+- **CSRF Protection** - Token-based protection with timing-safe comparison for all state-changing Server Actions
+- **Server Layout Guards** - Authentication checks in Server Components (CVE-2025-29927 compliant - auth NOT in proxy)
+- **Audit Logging** - Structured logging for all authentication events:
+  - Login attempts (success/failure)
+  - Magic link sent/failed
+  - Passkey authentication (started/success/failed)
+  - Rate limit exceeded events
+- **Standardized Errors** - Consistent error codes and user-friendly messages that don't leak implementation details
+- **Security Headers** - CSP, HSTS, X-Frame-Options, and other security headers
+
 ### Redirect URI Validation
 
 The auth service validates all `redirect_uri` parameters to prevent open redirect vulnerabilities. Allowed destinations:

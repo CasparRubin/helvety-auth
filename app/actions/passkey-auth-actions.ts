@@ -8,9 +8,11 @@ import {
   generateAuthenticationOptions as generateAuthOptions,
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
+import { logAuthEvent } from "@/lib/auth-logger";
 import { logger } from "@/lib/logger";
+import { checkRateLimit, RATE_LIMITS, resetRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -72,8 +74,25 @@ function generatePRFSalt(): string {
 // =============================================================================
 
 /**
+ * Get client IP for rate limiting
+ */
+async function getClientIP(): Promise<string> {
+  const headersList = await headers();
+  return (
+    headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    headersList.get("x-real-ip") ??
+    "unknown"
+  );
+}
+
+/**
  * Send a magic link to the user's email
  * Creates a new user if they don't exist, otherwise sends login link
+ *
+ * Security:
+ * - Rate limited to prevent email spam attacks
+ * - Email is normalized to prevent duplicates
+ * - Logs all attempts for audit trail
  *
  * @param email - The user's email address
  * @param redirectUri - Optional redirect URI to preserve through auth flow
@@ -83,9 +102,44 @@ export async function sendMagicLink(
   email: string,
   redirectUri?: string
 ): Promise<PasskeyActionResponse<{ isNewUser: boolean }>> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const clientIP = await getClientIP();
+
+  // Rate limit by email AND IP to prevent abuse
+  const emailRateLimit = checkRateLimit(
+    `magic_link:email:${normalizedEmail}`,
+    RATE_LIMITS.MAGIC_LINK.maxRequests,
+    RATE_LIMITS.MAGIC_LINK.windowMs
+  );
+  const ipRateLimit = checkRateLimit(
+    `magic_link:ip:${clientIP}`,
+    RATE_LIMITS.MAGIC_LINK.maxRequests * 3, // Allow more per IP (multiple users)
+    RATE_LIMITS.MAGIC_LINK.windowMs
+  );
+
+  if (!emailRateLimit.allowed || !ipRateLimit.allowed) {
+    const retryAfter = emailRateLimit.retryAfter ?? ipRateLimit.retryAfter ?? 60;
+    logAuthEvent("rate_limit_exceeded", {
+      metadata: {
+        action: "sendMagicLink",
+        email: normalizedEmail.slice(0, 3) + "***",
+        retryAfter,
+      },
+      ip: clientIP,
+    });
+    return {
+      success: false,
+      error: `Too many requests. Please wait ${retryAfter} seconds before trying again.`,
+    };
+  }
+
+  logAuthEvent("login_started", {
+    metadata: { method: "magic_link" },
+    ip: clientIP,
+  });
+
   try {
     const adminClient = createAdminClient();
-    const normalizedEmail = email.toLowerCase().trim();
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -140,8 +194,17 @@ export async function sendMagicLink(
 
     if (signInError) {
       logger.error("Error sending magic link:", signInError);
+      logAuthEvent("magic_link_failed", {
+        metadata: { reason: signInError.message },
+        ip: clientIP,
+      });
       return { success: false, error: "Failed to send verification email" };
     }
+
+    logAuthEvent("magic_link_sent", {
+      metadata: { isNewUser },
+      ip: clientIP,
+    });
 
     return {
       success: true,
@@ -149,6 +212,10 @@ export async function sendMagicLink(
     };
   } catch (error) {
     logger.error("Error in sendMagicLink:", error);
+    logAuthEvent("magic_link_failed", {
+      metadata: { reason: "unexpected_error" },
+      ip: clientIP,
+    });
     return { success: false, error: "Failed to send verification email" };
   }
 }
@@ -528,6 +595,10 @@ export async function verifyPasskeyRegistration(
  * Generate passkey authentication options
  * Called when a user wants to sign in with a passkey
  *
+ * Security:
+ * - Rate limited to prevent brute force attacks
+ * - Logs all attempts for audit trail
+ *
  * @param origin - The origin URL
  * @param redirectUri - Optional redirect URI to preserve through auth flow
  * @returns Authentication options to pass to the WebAuthn API
@@ -536,6 +607,28 @@ export async function generatePasskeyAuthOptions(
   origin: string,
   redirectUri?: string
 ): Promise<PasskeyActionResponse<PublicKeyCredentialRequestOptionsJSON>> {
+  const clientIP = await getClientIP();
+
+  // Rate limit by IP
+  const rateLimit = checkRateLimit(
+    `passkey_auth:ip:${clientIP}`,
+    RATE_LIMITS.PASSKEY.maxRequests,
+    RATE_LIMITS.PASSKEY.windowMs
+  );
+
+  if (!rateLimit.allowed) {
+    logAuthEvent("rate_limit_exceeded", {
+      metadata: { action: "generatePasskeyAuthOptions", retryAfter: rateLimit.retryAfter },
+      ip: clientIP,
+    });
+    return {
+      success: false,
+      error: `Too many attempts. Please wait ${rateLimit.retryAfter} seconds.`,
+    };
+  }
+
+  logAuthEvent("passkey_auth_started", { ip: clientIP });
+
   try {
     const rpId = getRpId(origin);
 
@@ -580,6 +673,11 @@ export async function generatePasskeyAuthOptions(
  * After successful passkey verification, this generates a magic link that
  * the client will use to complete authentication with Supabase.
  *
+ * Security:
+ * - Rate limited to prevent brute force attacks
+ * - Counter updates are critical for replay attack prevention
+ * - Logs all attempts for audit trail
+ *
  * @param response - The authentication response from the browser
  * @param origin - The origin URL
  * @returns Success status with auth link URL and optional redirect URI
@@ -594,10 +692,16 @@ export async function verifyPasskeyAuthentication(
     redirectUri?: string;
   }>
 > {
+  const clientIP = await getClientIP();
+
   try {
     // Retrieve stored challenge
     const storedData = await getStoredChallenge();
     if (!storedData) {
+      logAuthEvent("passkey_auth_failed", {
+        metadata: { reason: "challenge_expired" },
+        ip: clientIP,
+      });
       return { success: false, error: "Challenge expired or not found" };
     }
 
@@ -616,6 +720,10 @@ export async function verifyPasskeyAuthentication(
 
     if (credError || !credentialData) {
       logger.error("Credential not found:", credError);
+      logAuthEvent("passkey_auth_failed", {
+        metadata: { reason: "credential_not_found" },
+        ip: clientIP,
+      });
       return { success: false, error: "Credential not found" };
     }
 
@@ -646,10 +754,20 @@ export async function verifyPasskeyAuthentication(
       verification = await verifyAuthenticationResponse(opts);
     } catch (error) {
       logger.error("Authentication verification failed:", error);
+      logAuthEvent("passkey_auth_failed", {
+        userId: credential.user_id,
+        metadata: { reason: "verification_error" },
+        ip: clientIP,
+      });
       return { success: false, error: "Authentication verification failed" };
     }
 
     if (!verification.verified) {
+      logAuthEvent("passkey_auth_failed", {
+        userId: credential.user_id,
+        metadata: { reason: "verification_failed" },
+        ip: clientIP,
+      });
       return { success: false, error: "Authentication verification failed" };
     }
 
@@ -714,6 +832,14 @@ export async function verifyPasskeyAuthentication(
     // Clear the challenge
     await clearChallenge();
 
+    // Reset rate limit on successful auth
+    resetRateLimit(`passkey_auth:ip:${clientIP}`);
+
+    logAuthEvent("passkey_auth_success", {
+      userId: credential.user_id,
+      ip: clientIP,
+    });
+
     // Return the action link - client will navigate to this to complete auth
     return {
       success: true,
@@ -725,6 +851,10 @@ export async function verifyPasskeyAuthentication(
     };
   } catch (error) {
     logger.error("Error verifying authentication:", error);
+    logAuthEvent("passkey_auth_failed", {
+      metadata: { reason: "unexpected_error" },
+      ip: clientIP,
+    });
     return { success: false, error: "Failed to verify authentication" };
   }
 }

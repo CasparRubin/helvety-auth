@@ -8,7 +8,8 @@ This document describes the testing patterns and conventions used in this projec
 __tests__/
 ├── components/           # Component tests
 ├── lib/                  # Library/utility tests
-│   └── crypto/           # Encryption utility tests
+│   ├── crypto/           # Encryption utility tests
+│   └── auth/             # Authentication utility tests (csrf, rate-limit, auth-errors, auth-guard)
 └── utils/                # Test utilities
     ├── test-utils.tsx    # Custom render with providers
     └── mock-factories.ts # Test data factories
