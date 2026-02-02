@@ -355,16 +355,6 @@ function LoginContent() {
             userEmail={email}
             flowType={isReturningUser ? "returning_user" : "new_user"}
             redirectUri={redirectUri ?? undefined}
-            onComplete={() => {
-              // Redirect to destination after encryption setup
-              if (redirectUri) {
-                window.location.href = redirectUri;
-              } else if (process.env.NODE_ENV === "production") {
-                window.location.href = "https://helvety.com";
-              } else {
-                router.push("/");
-              }
-            }}
           />
         )}
 

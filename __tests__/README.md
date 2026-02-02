@@ -9,6 +9,7 @@ __tests__/
 ├── app/                  # Tests for app/ directory
 │   └── actions/          # Server action tests
 ├── components/           # Component tests
+│   └── encryption-setup.test.tsx
 ├── lib/                  # Library/utility tests
 │   ├── crypto/           # Encryption utility tests
 │   │   ├── encoding.test.ts

@@ -1,5 +1,6 @@
 "use client";
 
+import { startAuthentication } from "@simplewebauthn/browser";
 import {
   Fingerprint,
   ShieldCheck,
@@ -8,13 +9,14 @@ import {
   Smartphone,
   CheckCircle2,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 
 import {
   generatePasskeyRegistrationOptions,
   verifyPasskeyRegistration,
   savePasskeyParams,
+  generatePasskeyAuthOptions,
+  verifyPasskeyAuthentication,
 } from "@/app/actions/passkey-auth-actions";
 import {
   AuthStepper,
@@ -31,24 +33,20 @@ import {
 } from "@/components/ui/card";
 import { useEncryptionContext, PRF_VERSION } from "@/lib/crypto";
 import { storeMasterKey } from "@/lib/crypto/key-storage";
-import {
-  registerPasskey,
-  authenticatePasskeyWithEncryption,
-} from "@/lib/crypto/passkey";
+import { registerPasskey } from "@/lib/crypto/passkey";
 import {
   deriveKeyFromPRF,
 } from "@/lib/crypto/prf-key-derivation";
 import { logger } from "@/lib/logger";
 
 /**
- *
+ * Props for the EncryptionSetup component
  */
 interface EncryptionSetupProps {
   userId: string;
   userEmail: string;
   flowType?: AuthFlowType;
   redirectUri?: string;
-  onComplete?: () => void;
 }
 
 /** Setup step for tracking progress through the flow */
@@ -71,17 +69,22 @@ interface RegistrationData {
  * Also registers the passkey for authentication (passwordless login)
  *
  * Flow: initial → registering → ready_to_sign_in → signing_in → complete
- * 1. User clicks "Set Up with Phone" → creates passkey on phone
- * 2. User clicks "Sign In with Phone" → authenticates to derive encryption key
+ *
+ * Step 1: User clicks "Set Up with Phone"
+ *   - Creates passkey on phone via QR code + biometrics
+ *   - Registers credential with server (stores public key, PRF salt)
+ *
+ * Step 2: User clicks "Sign In with Phone"
+ *   - Authenticates with passkey to derive encryption key via PRF
+ *   - Calls verifyPasskeyAuthentication to create server session
+ *   - Redirects to destination app with valid session cookies
  */
 export function EncryptionSetup({
   userId,
   userEmail: _userEmail,
   flowType = "new_user",
   redirectUri,
-  onComplete,
 }: EncryptionSetupProps) {
-  const router = useRouter();
   const { prfSupported, prfSupportInfo, checkPRFSupport } =
     useEncryptionContext();
 
@@ -214,6 +217,9 @@ export function EncryptionSetup({
   };
 
   // Step 2: Handle sign-in to complete encryption setup
+  // This step authenticates with the passkey to:
+  // 1. Derive the encryption key via PRF
+  // 2. Create a proper server session via verifyPasskeyAuthentication
   const handleSignIn = async () => {
     if (!registrationData) {
       setError("Registration data not found. Please start over.");
@@ -226,12 +232,42 @@ export function EncryptionSetup({
     setSetupStep("signing_in");
 
     try {
-      let authResult;
+      const origin = window.location.origin;
+
+      // 1. Get server-generated auth options (stores challenge for verification)
+      const serverOptions = await generatePasskeyAuthOptions(
+        origin,
+        redirectUri ?? undefined
+      );
+      if (!serverOptions.success || !serverOptions.data) {
+        setError(serverOptions.error ?? "Failed to start authentication");
+        setSetupStep("ready_to_sign_in");
+        setIsLoading(false);
+        return;
+      }
+
+      // 2. Add PRF extension to server options for encryption key derivation
+      // We need to cast because PRF extension is not in the standard types
+      const optionsWithPRF = serverOptions.data as Parameters<
+        typeof startAuthentication
+      >[0]["optionsJSON"] & {
+        extensions?: Record<string, unknown>;
+      };
+      optionsWithPRF.extensions = {
+        ...(optionsWithPRF.extensions ?? {}),
+        prf: {
+          eval: {
+            first: new Uint8Array(
+              Buffer.from(registrationData.prfParams.prfSalt, "base64")
+            ),
+          },
+        },
+      };
+
+      // 3. Do WebAuthn authentication (gets PRF output AND response for server)
+      let authResponse;
       try {
-        authResult = await authenticatePasskeyWithEncryption(
-          [registrationData.credentialId],
-          registrationData.prfParams.prfSalt
-        );
+        authResponse = await startAuthentication({ optionsJSON: optionsWithPRF });
       } catch (err) {
         const message =
           err instanceof Error
@@ -249,7 +285,13 @@ export function EncryptionSetup({
         return;
       }
 
-      if (!authResult.prfOutput) {
+      // 4. Extract PRF output for encryption key derivation
+      const clientExtResults = authResponse.clientExtensionResults as {
+        prf?: { results?: { first?: ArrayBuffer } };
+      };
+      const prfOutput = clientExtResults.prf?.results?.first;
+
+      if (!prfOutput) {
         setError(
           "Failed to get encryption key from passkey. Please try again."
         );
@@ -258,16 +300,16 @@ export function EncryptionSetup({
         return;
       }
 
-      // Derive master key from PRF output
+      // 5. Derive master key from PRF output
       const masterKey = await deriveKeyFromPRF(
-        authResult.prfOutput,
+        prfOutput,
         registrationData.prfParams
       );
 
-      // Cache the master key
+      // 6. Cache the master key
       await storeMasterKey(userId, masterKey);
 
-      // Save encryption params to database
+      // 7. Save encryption params to database
       const saveResult = await savePasskeyParams({
         prf_salt: registrationData.prfParams.prfSalt,
         credential_id: registrationData.credentialId,
@@ -281,17 +323,25 @@ export function EncryptionSetup({
         return;
       }
 
+      // 8. Verify passkey with server to create a proper session
+      // This ensures the user has a valid session when redirected to the destination app
+      const verifyResult = await verifyPasskeyAuthentication(
+        authResponse,
+        origin
+      );
+      if (!verifyResult.success || !verifyResult.data) {
+        setError(verifyResult.error ?? "Failed to complete authentication");
+        setSetupStep("ready_to_sign_in");
+        setIsLoading(false);
+        return;
+      }
+
       // Mark as complete before redirect
       setSetupStep("complete");
 
-      // Success - redirect or callback
-      if (onComplete) {
-        onComplete();
-      } else if (redirectUri) {
-        window.location.href = redirectUri;
-      } else {
-        router.push("/");
-      }
+      // 9. Redirect using server-provided URL (session already established)
+      // The verifyPasskeyAuthentication already created the session with proper cookies
+      window.location.href = verifyResult.data.redirectUrl;
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "An unexpected error occurred";

@@ -239,11 +239,12 @@ After passkey authentication, new users are guided through a two-step encryption
 - The passkey is registered with the WebAuthn PRF extension enabled
 - Server stores the credential and PRF salt parameters
 
-**Step 2: Sign In with Passkey (Verification)**
+**Step 2: Sign In with Passkey (Verification + Session)**
 - User authenticates with the newly created passkey
 - PRF extension derives a deterministic output from the passkey
 - Client-side HKDF derives the encryption key from PRF output
-- Encryption key is used to encrypt/decrypt user data
+- Server verifies the passkey response and creates a session
+- User is redirected to destination app with valid session cookies
 
 **Key Features:**
 - **Encryption Passkey** - A passkey created using the WebAuthn PRF (Pseudo-Random Function) extension

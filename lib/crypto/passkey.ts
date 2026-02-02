@@ -406,8 +406,16 @@ export async function registerPasskeyWithEncryption(
 }
 
 /**
- * Combined passkey authentication and encryption unlock
- * Use this for returning user sign-in
+ * Client-side passkey authentication with PRF for encryption unlock
+ *
+ * This function performs WebAuthn authentication and returns the PRF output
+ * for deriving encryption keys. It does NOT create a server session.
+ *
+ * Use cases:
+ * - Unlocking encryption for users who already have a session
+ * - Getting PRF output after passkey registration (PRF only returns output during auth)
+ *
+ * For server session creation, use verifyPasskeyAuthentication server action instead.
  *
  * @param credentialIds - Optional list of allowed credential IDs
  * @param prfSalt - PRF salt for encryption (base64 encoded)
