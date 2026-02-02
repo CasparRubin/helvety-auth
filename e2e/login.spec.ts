@@ -8,7 +8,7 @@ test.describe("Login Page", () => {
 
   test("should show email input", async ({ page }) => {
     await page.goto("/login");
-    const emailInput = page.getByPlaceholder(/email/i);
+    const emailInput = page.getByLabel(/email address/i);
     await expect(emailInput).toBeVisible();
   });
 
@@ -21,7 +21,7 @@ test.describe("Login Page", () => {
   test("should validate email format", async ({ page }) => {
     await page.goto("/login");
 
-    const emailInput = page.getByPlaceholder(/email/i);
+    const emailInput = page.getByLabel(/email address/i);
     await emailInput.fill("invalid-email");
 
     const continueButton = page.getByRole("button", { name: /continue/i });
@@ -35,7 +35,7 @@ test.describe("Login Page", () => {
   test("should handle valid email input", async ({ page }) => {
     await page.goto("/login");
 
-    const emailInput = page.getByPlaceholder(/email/i);
+    const emailInput = page.getByLabel(/email address/i);
     await emailInput.fill("test@example.com");
 
     const continueButton = page.getByRole("button", { name: /continue/i });
@@ -62,16 +62,14 @@ test.describe("Theme Switching", () => {
     await page.goto("/login");
 
     const themeButton = page.getByRole("button", { name: /toggle theme/i });
+    await expect(themeButton).toBeVisible();
 
-    if (await themeButton.isVisible()) {
-      const htmlElement = page.locator("html");
-      const initialClass = await htmlElement.getAttribute("class");
+    const htmlElement = page.locator("html");
+    const initialClass = await htmlElement.getAttribute("class");
 
-      await themeButton.click();
-      await page.waitForTimeout(100);
+    await themeButton.click();
 
-      const newClass = await htmlElement.getAttribute("class");
-      expect(newClass).not.toBe(initialClass);
-    }
+    // Wait for theme change by checking the class actually changed
+    await expect(htmlElement).not.toHaveAttribute("class", initialClass ?? "");
   });
 });
