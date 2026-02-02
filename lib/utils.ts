@@ -5,9 +5,6 @@ import { logger } from "./logger";
 
 /**
  * Merges Tailwind CSS class names, resolving conflicts intelligently.
- *
- * @param inputs - Class values to merge (strings, objects, arrays, etc.)
- * @returns Merged class name string
  */
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
@@ -16,9 +13,7 @@ export function cn(...inputs: ClassValue[]): string {
 /**
  * Generates a secure random ID using crypto.randomUUID() when available,
  * or falls back to a cryptographically secure alternative.
- *
- * @returns A secure random string identifier
- * @throws {Error} If no secure random number generator is available
+ * Throws an error if no secure random number generator is available.
  */
 export function generateSecureId(): string {
   // Use crypto.randomUUID() if available (browser/Node.js 14.17.0+)

@@ -13,7 +13,7 @@
  *
  * SECURITY NOTES (for auditors):
  * - Sensitive keys (passwords, tokens, secrets) are automatically redacted from logged objects
- * - String messages may contain identifiers (user IDs, credential IDs) for debugging
+ * - String messages may contain identifiers (user IDs, entity IDs) for debugging
  * - These identifiers are UUIDs/internal IDs, not personal data (no emails, names, etc.)
  * - Info/warn/debug logs containing identifiers are suppressed in production
  * - Only error logs are output in production, and only for critical debugging

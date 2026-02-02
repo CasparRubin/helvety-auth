@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { logAuthEvent, createUserLogger, type AuthEvent } from "@/lib/auth-logger";
 
 describe("Auth Logger Module", () => {
-  const originalNodeEnv = process.env.NODE_ENV;
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
   let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
@@ -18,12 +17,12 @@ describe("Auth Logger Module", () => {
     consoleLogSpy.mockRestore();
     consoleWarnSpy.mockRestore();
     consoleErrorSpy.mockRestore();
-    process.env.NODE_ENV = originalNodeEnv;
+    vi.unstubAllEnvs();
   });
 
   describe("logAuthEvent", () => {
     it("should log events in development mode", () => {
-      process.env.NODE_ENV = "development";
+      vi.stubEnv("NODE_ENV", "development");
 
       logAuthEvent("login_success");
 
@@ -34,7 +33,7 @@ describe("Auth Logger Module", () => {
     });
 
     it("should log events as JSON in production mode", () => {
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
 
       logAuthEvent("login_success", { userId: "user-123" });
 
@@ -48,7 +47,7 @@ describe("Auth Logger Module", () => {
     });
 
     it("should partially mask userId for privacy", () => {
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
 
       logAuthEvent("login_success", { userId: "user-12345678" });
 
@@ -59,7 +58,7 @@ describe("Auth Logger Module", () => {
     });
 
     it("should not mask short userId", () => {
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
 
       logAuthEvent("login_success", { userId: "short" });
 
@@ -70,7 +69,7 @@ describe("Auth Logger Module", () => {
     });
 
     it("should include metadata in log", () => {
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
 
       logAuthEvent("rate_limit_exceeded", {
         metadata: { endpoint: "/login", retryAfter: 60 },
@@ -84,7 +83,7 @@ describe("Auth Logger Module", () => {
     });
 
     it("should include IP address when provided", () => {
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
 
       logAuthEvent("login_failed", { ip: "192.168.1.1" });
 
@@ -96,7 +95,7 @@ describe("Auth Logger Module", () => {
 
     describe("log levels", () => {
       beforeEach(() => {
-        process.env.NODE_ENV = "production";
+        vi.stubEnv("NODE_ENV", "production");
       });
 
       it("should use info level for success events", () => {
@@ -165,7 +164,7 @@ describe("Auth Logger Module", () => {
 
     describe("sensitive data redaction", () => {
       beforeEach(() => {
-        process.env.NODE_ENV = "production";
+        vi.stubEnv("NODE_ENV", "production");
       });
 
       it("should redact password in metadata", () => {
@@ -222,7 +221,7 @@ describe("Auth Logger Module", () => {
 
   describe("createUserLogger", () => {
     it("should create logger bound to user", () => {
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
 
       const userLogger = createUserLogger("user-12345678");
       userLogger("login_success");
@@ -234,7 +233,7 @@ describe("Auth Logger Module", () => {
     });
 
     it("should allow additional options", () => {
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
 
       const userLogger = createUserLogger("user-123");
       userLogger("encryption_unlock", {

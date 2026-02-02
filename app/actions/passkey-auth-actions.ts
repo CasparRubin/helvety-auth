@@ -17,7 +17,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 import type { UserAuthCredential } from "@/lib/types";
-import type { EmailOtpType } from "@supabase/supabase-js";
 import type {
   GenerateRegistrationOptionsOpts,
   GenerateAuthenticationOptionsOpts,
@@ -31,6 +30,7 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
   AuthenticatorTransportFuture,
 } from "@simplewebauthn/server";
+import type { EmailOtpType } from "@supabase/supabase-js";
 
 // =============================================================================
 // TYPES
@@ -123,7 +123,7 @@ export async function sendMagicLink(
     logAuthEvent("rate_limit_exceeded", {
       metadata: {
         action: "sendMagicLink",
-        email: normalizedEmail.slice(0, 3) + "***",
+        email: `${normalizedEmail.slice(0, 3)  }***`,
         retryAfter,
       },
       ip: clientIP,

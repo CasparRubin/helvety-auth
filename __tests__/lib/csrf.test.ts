@@ -1,7 +1,6 @@
-/**
- * @vitest-environment node
- */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+// eslint-disable-next-line jsdoc/check-tag-names -- vitest-environment is a valid vitest directive
+/** @vitest-environment node */
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock next/headers cookies
 const mockCookieStore = {
@@ -27,6 +26,10 @@ describe("CSRF Module", () => {
     mockCookieStore.set.mockReturnValue(undefined);
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   describe("generateCSRFToken", () => {
     it("should generate a token and set it as a cookie", async () => {
       const token = await generateCSRFToken();
@@ -47,8 +50,7 @@ describe("CSRF Module", () => {
     });
 
     it("should set secure flag in production", async () => {
-      const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
 
       await generateCSRFToken();
 
@@ -59,13 +61,10 @@ describe("CSRF Module", () => {
           secure: true,
         })
       );
-
-      process.env.NODE_ENV = originalEnv;
     });
 
     it("should not set secure flag in development", async () => {
-      const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = "development";
+      vi.stubEnv("NODE_ENV", "development");
 
       await generateCSRFToken();
 
@@ -76,8 +75,6 @@ describe("CSRF Module", () => {
           secure: false,
         })
       );
-
-      process.env.NODE_ENV = originalEnv;
     });
   });
 

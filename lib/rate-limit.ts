@@ -9,6 +9,9 @@
  * For multi-server deployments, consider using Redis or a similar distributed store.
  */
 
+/**
+ *
+ */
 interface RateLimitRecord {
   count: number;
   resetTime: number;
@@ -22,6 +25,9 @@ const rateLimitStore = new Map<string, RateLimitRecord>();
 const CLEANUP_INTERVAL = 60 * 1000; // 1 minute
 let cleanupTimer: NodeJS.Timeout | null = null;
 
+/**
+ *
+ */
 function startCleanup(): void {
   if (cleanupTimer) return;
 
