@@ -38,7 +38,7 @@ import { createClient } from "@/lib/supabase/client";
  */
 type LoginStep =
   | "email" // Enter email
-  | "email-sent" // Magic link sent, check your email
+  | "email-sent" // Magic link sent (new users or existing without passkey)
   | "passkey-setup" // deprecated: use encryption-setup
   | "passkey-signin" // Sign in with existing passkey
   | "passkey-verify" // Verify newly created passkey
@@ -83,6 +83,7 @@ function LoginContent() {
   const [error, setError] = useState(initialError);
   const [userId, setUserId] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [skippedToPasskey, setSkippedToPasskey] = useState(false);
 
   // Device detection for passkey flow (client-only, set on mount)
   useEffect(() => {
@@ -152,7 +153,7 @@ function LoginContent() {
     void init();
   }, [supabase, step, redirectUri]);
 
-  // Handle email submission - send magic link
+  // Handle email submission; sends magic link for new users (or existing without passkey), otherwise goes to passkey sign-in
   const handleEmailSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -168,8 +169,12 @@ function LoginContent() {
           return;
         }
 
-        // Move to email-sent step
-        setStep("email-sent");
+        if (result.data?.skipToPasskey) {
+          setStep("passkey-signin");
+          setSkippedToPasskey(true);
+        } else {
+          setStep("email-sent");
+        }
         setIsLoading(false);
       } catch (err) {
         logger.error("Email submission error:", err);
@@ -328,6 +333,7 @@ function LoginContent() {
     setStep("email");
     setError("");
     setIsLoading(false);
+    setSkippedToPasskey(false);
   };
 
   // Show loading while checking auth
@@ -348,8 +354,8 @@ function LoginContent() {
   })();
 
   // Determine if this is a returning user (has passkey) for stepper display
-  // Default to new user (false) if not specified
-  const isReturningUser = isNewUserParam === "false";
+  // From URL param (callback) or from having skipped to passkey after email submit
+  const isReturningUser = isNewUserParam === "false" || skippedToPasskey;
 
   return (
     <div className="flex min-h-screen flex-col items-center px-4 pt-8 md:pt-16 lg:pt-24">
@@ -434,7 +440,8 @@ function LoginContent() {
                   </Button>
 
                   <p className="text-muted-foreground text-center text-xs">
-                    We&apos;ll send you a verification link to sign in securely.
+                    We&apos;ll send a verification link only if you&apos;re new;
+                    otherwise sign in with your passkey.
                   </p>
                 </form>
               )}

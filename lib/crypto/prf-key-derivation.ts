@@ -81,7 +81,7 @@ export async function deriveKeyFromPRF(
       {
         name: "HKDF",
         hash: "SHA-256",
-        salt: salt as Uint8Array<ArrayBuffer>,
+        salt,
         info,
       },
       keyMaterial,
@@ -136,8 +136,7 @@ export async function unlockPRFEncryption(
  * - Chrome 128+, Edge 128+
  * - Firefox 139+ (desktop only; Android not supported)
  * - Hardware security keys (YubiKey 5+)
- * - Platform (this device) on mobile - Face ID, fingerprint, or PIN
- * - Cross-device (phone via QR code) on supported phones (desktop flow)
+ * - Cross-device (phone via QR code) on supported phones
  */
 export async function isPRFSupported(): Promise<boolean> {
   // Check if WebAuthn is available

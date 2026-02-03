@@ -40,6 +40,16 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, and helvet
 - `components/theme-switcher.tsx`
 - `components/app-switcher.tsx`
 
+### Infrastructure (must be identical)
+
+- `proxy.ts` (Next.js 16 proxy: session refresh and cookie domain)
+- `scripts/generate-version.js`
+
+### Test utilities (base should match)
+
+- `__tests__/utils/mock-factories.ts` – base factories (createMockUser, createMockSupabaseClient, etc.) should match; app-specific mocks (e.g. passkey in auth) are allowed in the same file.
+- `__tests__/utils/server-only-mock.ts` – should match across repos.
+
 ## App-Specific Code
 
 Put app-specific utilities in appropriately named files:
@@ -54,3 +64,7 @@ Put app-specific utilities in appropriately named files:
 2. Test thoroughly
 3. Copy to all other repos
 4. Commit changes to all repos together (or sequentially)
+
+## Cursor rules
+
+Shared rule files in `.cursor/rules/` (`code-organization.mdc`, `jsdoc-style.mdc`, `shared-code-patterns.mdc`, `after-change-checklist.mdc`, `official-docs-first.mdc`) should be kept in sync across helvety.com, helvety-auth, helvety-pdf, and helvety-store so all four follow the same standards.

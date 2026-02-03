@@ -17,7 +17,7 @@ Helvety Auth (`auth.helvety.com`) handles all authentication for Helvety applica
 
 ## Features
 
-- **Email + Passkey Authentication** - Secure two-factor flow with magic links and biometrics
+- **Email + Passkey Authentication** - Magic links for new users (and existing without passkey); existing users with a passkey go straight to passkey sign-in
 - **WebAuthn/FIDO2** - Device-aware passkey auth: on mobile, use this device (Face ID/fingerprint/PIN); on desktop, use phone via QR code + biometrics
 - **Cross-Subdomain SSO** - Single sign-on across all `*.helvety.com` apps
 - **Redirect URI Support** - Seamless cross-app authentication flows
@@ -35,9 +35,11 @@ Helvety Auth (`auth.helvety.com`) handles all authentication for Helvety applica
 
 **Pre-deployment:** Run `npm run predeploy` to run format check, type check, lint, tests, and production build.
 
+**Development standards:** See `.cursor/rules/` for code organization, JSDoc, shared code patterns, after-change checklist (tests, comments, README, legal), and official-docs-first. When editing shared code, run sync from helvety.com (see that repo's README).
+
 ## Authentication Flows
 
-Authentication uses a secure two-step process: email verification via magic link, followed by passkey authentication.
+New users receive a magic link to verify email, then complete passkey setup. Existing users with a passkey skip the email and sign in with passkey directly.
 
 ### New User Flow
 
@@ -73,6 +75,8 @@ sequenceDiagram
 
 ### Returning User Flow
 
+Existing users with a passkey do not receive a magic link. After entering their email, they go straight to passkey sign-in.
+
 Same device logic: **mobile** = sign in on this device; **desktop** = scan QR with phone and authenticate on phone.
 
 ```mermaid
@@ -83,11 +87,7 @@ sequenceDiagram
     participant S as Supabase
 
     U->>A: Enter email address
-    A->>S: Send magic link
-    S-->>U: Email with magic link
-    U->>A: Click magic link
-    A->>S: Verify email
-    S-->>A: Email verified
+    A->>A: Check user has passkey (no email sent)
     A->>U: Show passkey sign-in
     alt Desktop
       U->>P: Scan QR code with phone
@@ -106,14 +106,14 @@ Note: Passkey authentication creates the session directly server-side (via `veri
 ### Key Points
 
 - **Email required** - Users provide an email address for authentication and account recovery
-- **Magic link verification** - Email confirmation before passkey authentication
+- **Magic link only for new users** - New users (and existing users without a passkey) get a verification email; existing users with a passkey sign in directly with passkey
 - **Passkey security** - Biometric verification (Face ID, fingerprint, or PIN) via WebAuthn
 
 ## API Routes
 
 ### GET `/auth/callback`
 
-Handles authentication callbacks from email magic links and OAuth flows. After successful email verification, redirects to the login page with the appropriate passkey step.
+Handles authentication callbacks from email magic links (new users or existing users without a passkey) and OAuth flows. After successful email verification, redirects to the login page with the appropriate passkey step.
 
 **Note:** This route is NOT used for passkey sign-in. Passkey authentication creates the session directly server-side and redirects the user to their destination without going through this callback.
 

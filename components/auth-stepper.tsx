@@ -44,7 +44,7 @@ interface AuthStepperProps {
  * Stepper component for the email + passkey authentication flow.
  * Shows progress through:
  * - New users: Email → Passkey Setup → Passkey Sign In
- * - Returning users: Email → Passkey Sign In
+ * - Returning users: Email → Passkey Sign In (skip magic link, go straight to passkey)
  */
 export function AuthStepper({
   currentStep,

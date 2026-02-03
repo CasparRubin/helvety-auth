@@ -8,6 +8,9 @@ import { NextResponse, type NextRequest } from "next/server";
  * 1. Sessions are refreshed before they expire
  * 2. Cookies are properly set with the correct domain for cross-subdomain SSO
  * 3. Server components always have access to fresh session data
+ *
+ * IMPORTANT: Per CVE-2025-29927, this proxy should ONLY handle session refresh,
+ * NOT route protection. Use Server Layout Guards for authentication checks.
  */
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });

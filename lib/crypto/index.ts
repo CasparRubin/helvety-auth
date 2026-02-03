@@ -5,6 +5,7 @@
  * All encryption/decryption happens client-side; the server never sees plaintext.
  *
  * Uses passkey-based (PRF) key derivation for secure, passwordless encryption.
+ * Setup is handled by auth.helvety.com - this module only handles unlock and usage.
  */
 
 // Types
@@ -70,22 +71,15 @@ export type {
   PRFSupportInfo,
 } from "./prf-key-derivation";
 
-// Passkey Operations
+// Passkey Operations (Authentication only - setup is in auth.helvety.com)
 export {
   isPasskeySupported,
   isPlatformAuthenticatorAvailable,
   getRPConfig,
-  generateRegistrationOptions,
   generateAuthenticationOptions,
-  registerPasskey,
   authenticateWithPasskey,
-  registerPasskeyWithEncryption,
   authenticatePasskeyWithEncryption,
   isPRFSupported as isPasskeyPRFSupported,
   getPRFSupportInfo as getPasskeyPRFSupportInfo,
 } from "./passkey";
-export type {
-  RPConfig,
-  PasskeyRegistrationResult,
-  PasskeyAuthenticationResult,
-} from "./passkey";
+export type { RPConfig, PasskeyAuthenticationResult } from "./passkey";

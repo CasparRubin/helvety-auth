@@ -27,7 +27,7 @@ export async function encrypt(
     const encoded = new TextEncoder().encode(data);
 
     const ciphertext = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv: iv as Uint8Array<ArrayBuffer> },
+      { name: "AES-GCM", iv },
       key,
       encoded
     );
@@ -62,9 +62,9 @@ export async function decrypt(
     const ciphertext = base64Decode(encrypted.ciphertext);
 
     const decrypted = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: iv as Uint8Array<ArrayBuffer> },
+      { name: "AES-GCM", iv },
       key,
-      ciphertext as Uint8Array<ArrayBuffer>
+      ciphertext
     );
 
     return new TextDecoder().decode(decrypted);

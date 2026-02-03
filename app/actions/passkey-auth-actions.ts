@@ -87,8 +87,9 @@ async function getClientIP(): Promise<string> {
 }
 
 /**
- * Send a magic link to the user's email
- * Creates a new user if they don't exist, otherwise sends login link
+ * Send a magic link to the user's email, or skip to passkey sign-in for existing users with a passkey.
+ * Magic link is sent only for new users or existing users without a passkey (so they can complete setup).
+ * Existing users with a passkey skip the email and go straight to passkey sign-in.
  *
  * Security:
  * - Rate limited to prevent email spam attacks
@@ -97,12 +98,14 @@ async function getClientIP(): Promise<string> {
  *
  * @param email - The user's email address
  * @param redirectUri - Optional redirect URI to preserve through auth flow
- * @returns Success status with information about whether user is new
+ * @returns Success status with isNewUser and skipToPasskey (true when existing user with passkey)
  */
 export async function sendMagicLink(
   email: string,
   redirectUri?: string
-): Promise<PasskeyActionResponse<{ isNewUser: boolean }>> {
+): Promise<
+  PasskeyActionResponse<{ isNewUser: boolean; skipToPasskey?: boolean }>
+> {
   const normalizedEmail = email.toLowerCase().trim();
   const clientIP = await getClientIP();
 
@@ -179,14 +182,28 @@ export async function sendMagicLink(
       isNewUser = true;
     }
 
-    // Build the callback URL with redirect_uri if provided
+    // Existing user with passkey: skip magic link, go straight to passkey sign-in
+    if (existingUser) {
+      const passkeyStatus = await checkUserPasskeyStatus(existingUser.id);
+      if (passkeyStatus.success && passkeyStatus.data?.hasPasskey) {
+        logAuthEvent("login_started", {
+          metadata: { method: "passkey", skipMagicLink: true },
+          ip: clientIP,
+        });
+        return {
+          success: true,
+          data: { isNewUser: false, skipToPasskey: true },
+        };
+      }
+    }
+
+    // Send magic link for new users or existing users without passkey
     const origin =
       process.env.NEXT_PUBLIC_APP_URL ?? "https://auth.helvety.com";
     const callbackUrl = redirectUri
       ? `${origin}/auth/callback?redirect_uri=${encodeURIComponent(redirectUri)}`
       : `${origin}/auth/callback`;
 
-    // Send magic link (this also confirms email for new users)
     const { error: signInError } = await adminClient.auth.signInWithOtp({
       email: normalizedEmail,
       options: {
@@ -210,7 +227,7 @@ export async function sendMagicLink(
 
     return {
       success: true,
-      data: { isNewUser },
+      data: { isNewUser, skipToPasskey: false },
     };
   } catch (error) {
     logger.error("Error in sendMagicLink:", error);

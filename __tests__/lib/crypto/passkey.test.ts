@@ -260,52 +260,21 @@ describe("passkey module", () => {
       expect(extensions).toBeUndefined();
     });
 
-    it("should use platform authenticator and client-device hint when preferPlatform is true", async () => {
+    it("should use cross-platform authenticator and hybrid hint", async () => {
       const { generateRegistrationOptions } =
         await import("@/lib/crypto/passkey");
 
       const options = generateRegistrationOptions(
         "user-123",
         "test@example.com",
-        "Test User",
-        undefined,
-        true
+        "Test User"
       );
 
       expect(options.authenticatorSelection?.authenticatorAttachment).toBe(
-        "platform"
-      );
-      const hints = (options as { hints?: string[] }).hints;
-      expect(hints).toEqual(["client-device"]);
-    });
-
-    it("should use cross-platform authenticator and hybrid hint when preferPlatform is false or omitted", async () => {
-      const { generateRegistrationOptions } =
-        await import("@/lib/crypto/passkey");
-
-      const optionsDefault = generateRegistrationOptions(
-        "user-123",
-        "test@example.com",
-        "Test User"
-      );
-      const optionsFalse = generateRegistrationOptions(
-        "user-123",
-        "test@example.com",
-        "Test User",
-        undefined,
-        false
-      );
-
-      expect(
-        optionsDefault.authenticatorSelection?.authenticatorAttachment
-      ).toBe("cross-platform");
-      expect(optionsFalse.authenticatorSelection?.authenticatorAttachment).toBe(
         "cross-platform"
       );
-      expect((optionsDefault as { hints?: string[] }).hints).toEqual([
-        "hybrid",
-      ]);
-      expect((optionsFalse as { hints?: string[] }).hints).toEqual(["hybrid"]);
+      const hints = (options as { hints?: string[] }).hints;
+      expect(hints).toEqual(["hybrid"]);
     });
   });
 
@@ -360,31 +329,14 @@ describe("passkey module", () => {
       expect(extensions?.prf).toBeDefined();
     });
 
-    it("should use client-device hint when preferPlatform is true", async () => {
+    it("should use hybrid hint", async () => {
       const { generateAuthenticationOptions } =
         await import("@/lib/crypto/passkey");
 
-      const options = generateAuthenticationOptions(undefined, undefined, true);
+      const options = generateAuthenticationOptions();
 
       const hints = (options as { hints?: string[] }).hints;
-      expect(hints).toEqual(["client-device"]);
-    });
-
-    it("should use hybrid hint when preferPlatform is false or omitted", async () => {
-      const { generateAuthenticationOptions } =
-        await import("@/lib/crypto/passkey");
-
-      const optionsDefault = generateAuthenticationOptions();
-      const optionsFalse = generateAuthenticationOptions(
-        undefined,
-        undefined,
-        false
-      );
-
-      expect((optionsDefault as { hints?: string[] }).hints).toEqual([
-        "hybrid",
-      ]);
-      expect((optionsFalse as { hints?: string[] }).hints).toEqual(["hybrid"]);
+      expect(hints).toEqual(["hybrid"]);
     });
   });
 

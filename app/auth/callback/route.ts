@@ -13,12 +13,13 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 /**
  * Auth callback route for handling Supabase magic links and OAuth
  *
- * This route is called when users click email magic links or complete OAuth flows.
- * It exchanges the auth code for a session and redirects to the appropriate destination.
+ * This route is called when users click email magic links (new users or existing
+ * users without a passkey) or complete OAuth flows. It exchanges the auth code
+ * for a session and redirects to the appropriate destination.
  *
- * NOTE: This route is NOT used for passkey sign-in. Passkey authentication creates
- * the session directly server-side in verifyPasskeyAuthentication() and returns
- * a redirect URL to the client without going through this callback.
+ * NOTE: This route is NOT used for passkey sign-in. Passkey authentication
+ * creates the session directly server-side in verifyPasskeyAuthentication()
+ * and returns a redirect URL to the client without going through this callback.
  *
  * After successful email auth, checks if user has passkey and encryption:
  * - If no passkey: redirects to login with step=encryption-setup (new user flow)

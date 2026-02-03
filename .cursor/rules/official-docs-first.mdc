@@ -1,0 +1,23 @@
+---
+description: Consult official vendor docs for frameworks and libraries; avoid deprecated APIs and blog posts
+alwaysApply: true
+---
+
+# Official Documentation First
+
+When implementing or altering code that touches a framework, library, or service:
+
+1. Consult **official vendor documentation** first.
+2. Prefer current, vendor-recommended APIs and patterns.
+3. Avoid deprecated APIs.
+4. Do **not** rely on third-party blog posts or tutorials as the primary source.
+
+## This repo (Next.js apps)
+
+Use official docs for:
+
+- [Next.js](https://nextjs.org/docs)
+- [Supabase](https://supabase.com/docs)
+- [shadcn/ui](https://ui.shadcn.com)
+- [Stripe](https://stripe.com/docs) (where used, e.g. helvety-store)
+- [React](https://react.dev) when relevant

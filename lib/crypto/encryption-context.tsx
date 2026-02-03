@@ -17,14 +17,12 @@ import {
 } from "./key-storage";
 import {
   isPasskeySupported,
-  registerPasskeyWithEncryption,
   authenticatePasskeyWithEncryption,
-} from "./passkey";
-import {
-  generatePRFParams,
-  deriveKeyFromPRF,
   isPRFSupported,
   getPRFSupportInfo,
+} from "./passkey";
+import {
+  deriveKeyFromPRF,
   type PRFKeyParams,
   type PRFSupportInfo,
 } from "./prf-key-derivation";
@@ -47,15 +45,6 @@ interface EncryptionState {
 
 /** Public API exposed by the encryption context */
 interface EncryptionContextValue extends EncryptionState {
-  /**
-   * Initialize encryption with passkey (PRF-based)
-   * Call this during onboarding to set up E2EE with passkey
-   */
-  initializePasskeyEncryption: (
-    userId: string,
-    userEmail: string
-  ) => Promise<{ params: PRFKeyParams; credentialId: string } | null>;
-
   /**
    * Unlock encryption with passkey (PRF-based)
    * Call this on login to derive the master key
@@ -196,104 +185,6 @@ export function EncryptionProvider({ children }: EncryptionProviderProps) {
   }, []);
 
   /**
-   * Initialize encryption with passkey (PRF-based)
-   *
-   * Flow:
-   * 1. Register passkey (PRF only returns 'enabled' status, not output)
-   * 2. Immediately authenticate with the new passkey to get PRF output
-   * 3. Derive encryption key from PRF output
-   */
-  const initializePasskeyEncryption = useCallback(
-    async (
-      userId: string,
-      userEmail: string
-    ): Promise<{ params: PRFKeyParams; credentialId: string } | null> => {
-      setState((prev) => ({ ...prev, isLoading: true, error: null }));
-
-      try {
-        // Check PRF support first
-        const supported = await isPRFSupported();
-        if (!supported) {
-          const info = await getPRFSupportInfo();
-          setState((prev) => ({
-            ...prev,
-            isLoading: false,
-            error: info.reason ?? "PRF extension not supported on this device",
-            prfSupported: false,
-            prfSupportInfo: info,
-          }));
-          return null;
-        }
-
-        // Generate PRF params
-        const params = generatePRFParams();
-
-        // Step 1: Register passkey with PRF extension
-        const regResult = await registerPasskeyWithEncryption(
-          userId,
-          userEmail,
-          params.prfSalt
-        );
-
-        if (!regResult.prfEnabled) {
-          setState((prev) => ({
-            ...prev,
-            isLoading: false,
-            error:
-              "Your authenticator does not support encryption. Please try a different device or security key.",
-          }));
-          return null;
-        }
-
-        // Step 2: Immediately authenticate to get PRF output
-        // PRF output is only available during authentication, not registration
-        const authResult = await authenticatePasskeyWithEncryption(
-          [regResult.credentialId], // Only allow the credential we just created
-          params.prfSalt
-        );
-
-        if (!authResult.prfOutput) {
-          setState((prev) => ({
-            ...prev,
-            isLoading: false,
-            error:
-              "Failed to get encryption key from passkey. Please try again.",
-          }));
-          return null;
-        }
-
-        // Step 3: Derive master key from PRF output
-        const masterKey = await deriveKeyFromPRF(authResult.prfOutput, params);
-
-        // Cache the master key
-        await storeMasterKey(userId, masterKey);
-
-        setState((prev) => ({
-          ...prev,
-          isUnlocked: true,
-          isLoading: false,
-          masterKey,
-          error: null,
-        }));
-
-        return { params, credentialId: regResult.credentialId };
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to initialize passkey encryption";
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-          error: message,
-        }));
-        return null;
-      }
-    },
-    []
-  );
-
-  /**
    * Unlock encryption with passkey (PRF-based)
    */
   const unlockWithPasskey = useCallback(
@@ -353,7 +244,6 @@ export function EncryptionProvider({ children }: EncryptionProviderProps) {
 
   const value: EncryptionContextValue = {
     ...state,
-    initializePasskeyEncryption,
     unlockWithPasskey,
     lockEncryption,
     checkEncryptionState,

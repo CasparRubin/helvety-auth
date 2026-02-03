@@ -19,10 +19,11 @@ export function base64Encode(data: Uint8Array): string {
 /**
  * Decode a base64 string to Uint8Array
  */
-export function base64Decode(base64: string): Uint8Array {
+export function base64Decode(base64: string): Uint8Array<ArrayBuffer> {
   // Use atob for base64 decoding
   const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
@@ -33,15 +34,21 @@ export function base64Decode(base64: string): Uint8Array {
  * Generate a cryptographically secure random salt
  * @param length - Length in bytes (default: 16)
  */
-export function generateSalt(length: number = 16): Uint8Array {
-  return crypto.getRandomValues(new Uint8Array(length));
+export function generateSalt(length: number = 16): Uint8Array<ArrayBuffer> {
+  const buffer = new ArrayBuffer(length);
+  const bytes = new Uint8Array(buffer);
+  crypto.getRandomValues(bytes);
+  return bytes;
 }
 
 /**
  * Generate a random IV for AES-GCM (12 bytes as recommended by NIST)
  */
-export function generateIV(): Uint8Array {
-  return crypto.getRandomValues(new Uint8Array(12));
+export function generateIV(): Uint8Array<ArrayBuffer> {
+  const buffer = new ArrayBuffer(12);
+  const bytes = new Uint8Array(buffer);
+  crypto.getRandomValues(bytes);
+  return bytes;
 }
 
 /**

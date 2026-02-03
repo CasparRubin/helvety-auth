@@ -6,6 +6,9 @@ This document describes the testing patterns and conventions used in this projec
 
 ```
 __tests__/
+├── app/
+│   └── actions/          # Server action tests
+│       └── sendMagicLink.test.ts  # Magic link only for new / no-passkey users
 ├── components/           # Component tests
 │   └── encryption-setup.test.tsx
 ├── lib/                  # Library/utility tests
@@ -147,3 +150,5 @@ The project enforces these coverage thresholds:
 4. **Reset mocks between tests** - Use `vi.clearAllMocks()` in `beforeEach`
 5. **Use screen queries** - Prefer `screen.getByRole` over `container.querySelector`
 6. **Avoid testing implementation details** - Don't test private methods or state directly
+
+When changing code, keep tests in sync with new or changed behavior (see `.cursor/rules/after-change-checklist.mdc`).
