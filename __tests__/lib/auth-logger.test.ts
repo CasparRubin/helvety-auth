@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-import { logAuthEvent, createUserLogger, type AuthEvent } from "@/lib/auth-logger";
+import {
+  logAuthEvent,
+  createUserLogger,
+  type AuthEvent,
+} from "@/lib/auth-logger";
 
 describe("Auth Logger Module", () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;

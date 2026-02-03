@@ -1,7 +1,12 @@
 import { startAuthentication } from "@simplewebauthn/browser";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { render, screen, waitFor, fireEvent } from "@/__tests__/utils/test-utils";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+} from "@/__tests__/utils/test-utils";
 import {
   generatePasskeyRegistrationOptions,
   verifyPasskeyRegistration,
@@ -128,7 +133,7 @@ describe("EncryptionSetup", () => {
           clientDataJSON: "eyJ0ZXN0IjoidmFsdWUifQ",
           attestationObject: "attestation-data",
         },
-        clientExtensionResults: { prf: { enabled: true } },
+        clientExtensionResults: { prf: { enabled: true } } as never,
         authenticatorAttachment: "cross-platform",
       },
       credentialId: "test-credential-id",
@@ -187,7 +192,8 @@ describe("EncryptionSetup", () => {
 
       await waitFor(() => {
         expect(generatePasskeyRegistrationOptions).toHaveBeenCalledWith(
-          expect.any(String) // origin
+          expect.any(String), // origin
+          { isMobile: expect.any(Boolean) }
         );
       });
     });
@@ -253,7 +259,8 @@ describe("EncryptionSetup", () => {
       await waitFor(() => {
         expect(generatePasskeyAuthOptions).toHaveBeenCalledWith(
           expect.any(String), // origin
-          "https://pdf.helvety.com" // redirectUri
+          "https://pdf.helvety.com", // redirectUri
+          { isMobile: expect.any(Boolean) }
         );
       });
     });
@@ -305,7 +312,10 @@ describe("EncryptionSetup", () => {
         callOrder.push("verifyPasskeyAuthentication");
         return {
           success: true,
-          data: { redirectUrl: "https://pdf.helvety.com", userId: "test-user-id" },
+          data: {
+            redirectUrl: "https://pdf.helvety.com",
+            userId: "test-user-id",
+          },
         };
       });
 
@@ -314,7 +324,10 @@ describe("EncryptionSetup", () => {
       fireEvent.click(screen.getByText("Sign In with Phone"));
 
       await waitFor(() => {
-        expect(callOrder).toEqual(["savePasskeyParams", "verifyPasskeyAuthentication"]);
+        expect(callOrder).toEqual([
+          "savePasskeyParams",
+          "verifyPasskeyAuthentication",
+        ]);
       });
     });
 
@@ -359,7 +372,9 @@ describe("EncryptionSetup", () => {
       fireEvent.click(screen.getByText("Sign In with Phone"));
 
       await waitFor(() => {
-        expect(screen.getByText("Failed to start authentication")).toBeInTheDocument();
+        expect(
+          screen.getByText("Failed to start authentication")
+        ).toBeInTheDocument();
       });
     });
 
@@ -373,7 +388,9 @@ describe("EncryptionSetup", () => {
       fireEvent.click(screen.getByText("Sign In with Phone"));
 
       await waitFor(() => {
-        expect(screen.getByText("Sign in was cancelled. Please try again.")).toBeInTheDocument();
+        expect(
+          screen.getByText("Sign in was cancelled. Please try again.")
+        ).toBeInTheDocument();
       });
     });
 
@@ -397,7 +414,9 @@ describe("EncryptionSetup", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("Failed to get encryption key from passkey. Please try again.")
+          screen.getByText(
+            "Failed to get encryption key from passkey. Please try again."
+          )
         ).toBeInTheDocument();
       });
     });
@@ -453,7 +472,9 @@ describe("EncryptionSetup", () => {
 
   describe("without redirectUri", () => {
     it("should pass undefined redirectUri to generatePasskeyAuthOptions", async () => {
-      render(<EncryptionSetup userId="test-user-id" userEmail="test@example.com" />);
+      render(
+        <EncryptionSetup userId="test-user-id" userEmail="test@example.com" />
+      );
 
       await waitFor(() => {
         expect(screen.getByText("Set Up with Phone")).toBeInTheDocument();
@@ -470,7 +491,8 @@ describe("EncryptionSetup", () => {
       await waitFor(() => {
         expect(generatePasskeyAuthOptions).toHaveBeenCalledWith(
           expect.any(String), // origin
-          undefined // redirectUri
+          undefined, // redirectUri
+          { isMobile: expect.any(Boolean) }
         );
       });
     });

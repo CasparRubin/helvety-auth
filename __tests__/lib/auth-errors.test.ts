@@ -19,7 +19,9 @@ describe("Auth Errors Module", () => {
       expect(AuthErrorCode.RATE_LIMITED).toBe("rate_limited");
       expect(AuthErrorCode.CSRF_INVALID).toBe("csrf_invalid");
       expect(AuthErrorCode.PASSKEY_FAILED).toBe("passkey_failed");
-      expect(AuthErrorCode.PASSKEY_REGISTRATION_FAILED).toBe("passkey_registration_failed");
+      expect(AuthErrorCode.PASSKEY_REGISTRATION_FAILED).toBe(
+        "passkey_registration_failed"
+      );
       expect(AuthErrorCode.PASSKEY_NOT_SUPPORTED).toBe("passkey_not_supported");
       expect(AuthErrorCode.PRF_NOT_SUPPORTED).toBe("prf_not_supported");
       expect(AuthErrorCode.ENCRYPTION_FAILED).toBe("encryption_failed");
@@ -65,8 +67,12 @@ describe("Auth Errors Module", () => {
       expect(error).toBeInstanceOf(Error);
       expect(error).toBeInstanceOf(AuthError);
       expect(error.code).toBe(AuthErrorCode.SESSION_EXPIRED);
-      expect(error.message).toBe(AUTH_ERROR_MESSAGES[AuthErrorCode.SESSION_EXPIRED]);
-      expect(error.userMessage).toBe(AUTH_ERROR_MESSAGES[AuthErrorCode.SESSION_EXPIRED]);
+      expect(error.message).toBe(
+        AUTH_ERROR_MESSAGES[AuthErrorCode.SESSION_EXPIRED]
+      );
+      expect(error.userMessage).toBe(
+        AUTH_ERROR_MESSAGES[AuthErrorCode.SESSION_EXPIRED]
+      );
       expect(error.name).toBe("AuthError");
     });
 
@@ -77,12 +83,18 @@ describe("Auth Errors Module", () => {
       );
 
       expect(error.message).toBe("Connection timeout after 30s");
-      expect(error.userMessage).toBe(AUTH_ERROR_MESSAGES[AuthErrorCode.NETWORK_ERROR]);
+      expect(error.userMessage).toBe(
+        AUTH_ERROR_MESSAGES[AuthErrorCode.NETWORK_ERROR]
+      );
     });
 
     it("should store cause error", () => {
       const cause = new Error("Original error");
-      const error = new AuthError(AuthErrorCode.SERVER_ERROR, "Wrapped error", cause);
+      const error = new AuthError(
+        AuthErrorCode.SERVER_ERROR,
+        "Wrapped error",
+        cause
+      );
 
       expect(error.cause).toBe(cause);
     });
@@ -97,7 +109,9 @@ describe("Auth Errors Module", () => {
 
       expect(json.code).toBe(AuthErrorCode.RATE_LIMITED);
       expect(json.message).toBe("Too many login attempts");
-      expect(json.userMessage).toBe(AUTH_ERROR_MESSAGES[AuthErrorCode.RATE_LIMITED]);
+      expect(json.userMessage).toBe(
+        AUTH_ERROR_MESSAGES[AuthErrorCode.RATE_LIMITED]
+      );
     });
   });
 
@@ -183,8 +197,12 @@ describe("Auth Errors Module", () => {
     });
 
     it("should return generic message for non-error values", () => {
-      expect(getErrorMessage(null)).toBe(AUTH_ERROR_MESSAGES[AuthErrorCode.SERVER_ERROR]);
-      expect(getErrorMessage("string error")).toBe(AUTH_ERROR_MESSAGES[AuthErrorCode.SERVER_ERROR]);
+      expect(getErrorMessage(null)).toBe(
+        AUTH_ERROR_MESSAGES[AuthErrorCode.SERVER_ERROR]
+      );
+      expect(getErrorMessage("string error")).toBe(
+        AUTH_ERROR_MESSAGES[AuthErrorCode.SERVER_ERROR]
+      );
     });
   });
 
@@ -209,7 +227,9 @@ describe("Auth Errors Module", () => {
 
   describe("authFailure", () => {
     it("should create failed result with error", () => {
-      const result = authFailure<{ userId: string }>(AuthErrorCode.USER_NOT_FOUND);
+      const result = authFailure<{ userId: string }>(
+        AuthErrorCode.USER_NOT_FOUND
+      );
 
       expect(result.success).toBe(false);
       if (!result.success) {

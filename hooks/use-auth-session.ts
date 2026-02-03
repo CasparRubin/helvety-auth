@@ -186,7 +186,13 @@ export function useAuthSession(
     );
 
     // Track user activity
-    const activityEvents = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    const activityEvents = [
+      "mousemove",
+      "keydown",
+      "click",
+      "scroll",
+      "touchstart",
+    ];
 
     activityEvents.forEach((event) => {
       window.addEventListener(event, updateActivity, { passive: true });

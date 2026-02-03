@@ -167,7 +167,9 @@ describe("CSRF Module", () => {
     it("should throw for null token", async () => {
       mockCookieStore.get.mockReturnValue({ value: "stored-token" });
 
-      await expect(requireCSRFToken(null)).rejects.toThrow("Invalid CSRF token");
+      await expect(requireCSRFToken(null)).rejects.toThrow(
+        "Invalid CSRF token"
+      );
     });
 
     it("should throw when cookie is missing", async () => {

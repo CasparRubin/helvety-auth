@@ -163,12 +163,14 @@ function base64Decode(str: string): Uint8Array {
  * @param userEmail - The user's email
  * @param userName - The user's display name
  * @param prfSalt - Optional PRF salt for encryption (base64 encoded)
+ * @param preferPlatform - If true, use platform authenticator (this device); if false, cross-platform/hybrid (phone via QR)
  */
 export function generateRegistrationOptions(
   userId: string,
   userEmail: string,
   userName: string,
-  prfSalt?: string
+  prfSalt?: string,
+  preferPlatform?: boolean
 ): PublicKeyCredentialCreationOptionsJSON {
   const rpConfig = getRPConfig();
 
@@ -190,22 +192,27 @@ export function generateRegistrationOptions(
       { alg: -7, type: "public-key" }, // ES256
       { alg: -257, type: "public-key" }, // RS256
     ],
-    authenticatorSelection: {
-      // Force cross-platform authenticators only (phones via QR code)
-      // This excludes Windows Hello, Touch ID, and other platform authenticators
-      authenticatorAttachment: "cross-platform",
-      userVerification: "required",
-      residentKey: "required",
-      requireResidentKey: true,
-    },
+    authenticatorSelection: preferPlatform
+      ? {
+          authenticatorAttachment: "platform",
+          userVerification: "required",
+          residentKey: "required",
+          requireResidentKey: true,
+        }
+      : {
+          authenticatorAttachment: "cross-platform",
+          userVerification: "required",
+          residentKey: "required",
+          requireResidentKey: true,
+        },
     timeout: 60000,
     attestation: "none",
   };
 
-  // Hint to prefer phone authenticators (hybrid) over security keys
+  // Hints: platform = this device; hybrid = phone via QR
   (
     options as PublicKeyCredentialCreationOptionsJSON & { hints?: string[] }
-  ).hints = ["hybrid"];
+  ).hints = preferPlatform ? ["client-device"] : ["hybrid"];
 
   // Add PRF extension if salt provided
   if (prfSalt) {
@@ -230,10 +237,12 @@ export function generateRegistrationOptions(
  *
  * @param allowCredentials - Optional list of credential IDs to allow
  * @param prfSalt - PRF salt for encryption key derivation (base64 encoded)
+ * @param preferPlatform - If true, hint client-device (this device); if false, hybrid (phone via QR)
  */
 export function generateAuthenticationOptions(
   allowCredentials?: string[],
-  prfSalt?: string
+  prfSalt?: string,
+  preferPlatform?: boolean
 ): PublicKeyCredentialRequestOptionsJSON {
   const rpConfig = getRPConfig();
 
@@ -252,15 +261,14 @@ export function generateAuthenticationOptions(
     options.allowCredentials = allowCredentials.map((id) => ({
       id,
       type: "public-key",
-      // Only hint hybrid (phone via QR) since we force cross-platform authenticators
-      transports: ["hybrid"],
+      transports: preferPlatform ? undefined : (["hybrid"] as const),
     }));
   }
 
-  // Hint to prefer phone authenticators over security keys
+  // Hints: platform = this device; hybrid = phone via QR
   (
     options as PublicKeyCredentialRequestOptionsJSON & { hints?: string[] }
-  ).hints = ["hybrid"];
+  ).hints = preferPlatform ? ["client-device"] : ["hybrid"];
 
   // Add PRF extension if salt provided
   if (prfSalt) {

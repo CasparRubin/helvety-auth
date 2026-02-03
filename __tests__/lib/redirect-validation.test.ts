@@ -39,10 +39,12 @@ describe("redirect-validation", () => {
         // The pattern supports any subdomain for future apps
         expect(isValidRedirectUri("https://new-app.helvety.com")).toBe(true);
         expect(isValidRedirectUri("https://api.helvety.com")).toBe(true);
-        expect(isValidRedirectUri("https://dashboard.helvety.com/settings")).toBe(
+        expect(
+          isValidRedirectUri("https://dashboard.helvety.com/settings")
+        ).toBe(true);
+        expect(isValidRedirectUri("https://my-cool-app.helvety.com")).toBe(
           true
         );
-        expect(isValidRedirectUri("https://my-cool-app.helvety.com")).toBe(true);
       });
     });
 
@@ -87,9 +89,9 @@ describe("redirect-validation", () => {
       it("should reject external domains", () => {
         expect(isValidRedirectUri("https://evil.com")).toBe(false);
         expect(isValidRedirectUri("https://google.com")).toBe(false);
-        expect(isValidRedirectUri("https://evil.helvety.com.attacker.com")).toBe(
-          false
-        );
+        expect(
+          isValidRedirectUri("https://evil.helvety.com.attacker.com")
+        ).toBe(false);
       });
 
       it("should reject http for production domains", () => {

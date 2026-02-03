@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getRequiredAuthStep } from "@/lib/auth-utils";
 import { isPasskeySupported } from "@/lib/crypto/passkey";
+import { isMobileDevice } from "@/lib/device-utils";
 import { logger } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/client";
 
@@ -81,6 +82,13 @@ function LoginContent() {
   const [step, setStep] = useState<LoginStep>(initialStep);
   const [error, setError] = useState(initialError);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Device detection for passkey flow (client-only, set on mount)
+  useEffect(() => {
+    const id = setTimeout(() => setIsMobile(isMobileDevice()), 0);
+    return () => clearTimeout(id);
+  }, []);
 
   // Initialize: check passkey support and existing session
   useEffect(() => {
@@ -116,7 +124,10 @@ function LoginContent() {
         // Check passkey/encryption status to determine next step
         const { step: requiredStep } = await getRequiredAuthStep(user.id);
 
-        if (requiredStep === "encryption-setup" || requiredStep === "passkey-signin") {
+        if (
+          requiredStep === "encryption-setup" ||
+          requiredStep === "passkey-signin"
+        ) {
           // User needs to complete passkey flow - show appropriate step
           setStep(requiredStep);
           setCheckingAuth(false);
@@ -183,7 +194,9 @@ function LoginContent() {
       const origin = window.location.origin;
 
       // Get registration options
-      const optionsResult = await generatePasskeyRegistrationOptions(origin);
+      const optionsResult = await generatePasskeyRegistrationOptions(origin, {
+        isMobile: isMobileDevice(),
+      });
       if (!optionsResult.success || !optionsResult.data) {
         setError(optionsResult.error ?? "Failed to start passkey setup");
         setIsLoading(false);
@@ -246,7 +259,8 @@ function LoginContent() {
       // Get authentication options
       const optionsResult = await generatePasskeyAuthOptions(
         origin,
-        redirectUri ?? undefined
+        redirectUri ?? undefined,
+        { isMobile: isMobileDevice() }
       );
       if (!optionsResult.success || !optionsResult.data) {
         setError(
@@ -360,251 +374,255 @@ function LoginContent() {
 
         {/* Show card for other steps */}
         {step !== "encryption-setup" && (
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle>
-              {step === "email" && "Welcome to Helvety"}
-              {step === "email-sent" && "Check Your Email"}
-              {step === "passkey-setup" && "Set Up Your Passkey"}
-              {step === "passkey-signin" && "Sign In with Passkey"}
-              {step === "passkey-verify" && "Verify Your Passkey"}
-            </CardTitle>
-            <CardDescription>
-              {step === "email" &&
-                "Enter your email to sign in or create an account"}
-              {step === "email-sent" &&
-                `We sent a verification link to ${email}`}
-              {step === "passkey-setup" &&
-                "Create a passkey to secure your account"}
-              {step === "passkey-signin" && "Use your passkey to sign in"}
-              {step === "passkey-verify" &&
-                "Verify your new passkey to complete setup"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Step 1: Email input */}
-            {step === "email" && (
-              <form onSubmit={handleEmailSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    autoFocus
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle>
+                {step === "email" && "Welcome to Helvety"}
+                {step === "email-sent" && "Check Your Email"}
+                {step === "passkey-setup" && "Set Up Your Passkey"}
+                {step === "passkey-signin" && "Sign In with Passkey"}
+                {step === "passkey-verify" && "Verify Your Passkey"}
+              </CardTitle>
+              <CardDescription>
+                {step === "email" &&
+                  "Enter your email to sign in or create an account"}
+                {step === "email-sent" &&
+                  `We sent a verification link to ${email}`}
+                {step === "passkey-setup" &&
+                  "Create a passkey to secure your account"}
+                {step === "passkey-signin" && "Use your passkey to sign in"}
+                {step === "passkey-verify" &&
+                  "Verify your new passkey to complete setup"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Step 1: Email input */}
+              {step === "email" && (
+                <form onSubmit={handleEmailSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      autoFocus
+                      disabled={isLoading}
+                    />
+                  </div>
+
+                  {error && (
+                    <p className="text-destructive text-center text-sm">
+                      {error}
+                    </p>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={isLoading || !email}
+                    size="lg"
+                    className="w-full"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Mail className="mr-2 h-4 w-4" />
+                    )}
+                    Continue
+                  </Button>
+
+                  <p className="text-muted-foreground text-center text-xs">
+                    We&apos;ll send you a verification link to sign in securely.
+                  </p>
+                </form>
+              )}
+
+              {/* Step 2: Email sent */}
+              {step === "email-sent" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center py-4">
+                    <div className="bg-primary/10 flex h-16 w-16 items-center justify-center rounded-full">
+                      <Mail className="text-primary h-8 w-8" />
+                    </div>
+                  </div>
+
+                  <p className="text-muted-foreground text-center text-sm">
+                    Click the link in the email to continue. The link will
+                    expire in 1 hour.
+                  </p>
+
+                  {error && (
+                    <p className="text-destructive text-center text-sm">
+                      {error}
+                    </p>
+                  )}
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full"
+                    onClick={handleBack}
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Use a different email
+                  </Button>
+                </div>
+              )}
+
+              {/* Step 3: Passkey setup (new users) */}
+              {step === "passkey-setup" && (
+                <div className="space-y-4">
+                  {!passkeySupported && (
+                    <div className="bg-destructive/10 text-destructive rounded-lg p-3 text-sm">
+                      Your browser doesn&apos;t support passkeys. Please use a
+                      modern browser like Chrome, Safari, or Edge.
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-center py-4">
+                    <div className="bg-primary/10 flex h-16 w-16 items-center justify-center rounded-full">
+                      {isLoading ? (
+                        <Loader2 className="text-primary h-8 w-8 animate-spin" />
+                      ) : (
+                        <KeyRound className="text-primary h-8 w-8" />
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-muted-foreground text-center text-sm">
+                    {isLoading
+                      ? isMobile
+                        ? "Use Face ID, fingerprint, or PIN on this device."
+                        : "Scan the QR code with your phone and verify with Face ID, fingerprint, or PIN."
+                      : "A passkey lets you sign in securely using Face ID, fingerprint, or PIN on your device."}
+                  </p>
+
+                  {error && (
+                    <p className="text-destructive text-center text-sm">
+                      {error}
+                    </p>
+                  )}
+
+                  <Button
+                    onClick={handlePasskeySetup}
+                    disabled={isLoading || !passkeySupported}
+                    size="lg"
+                    className="w-full"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <KeyRound className="mr-2 h-4 w-4" />
+                    )}
+                    {isLoading ? "Setting up passkey..." : "Set Up Passkey"}
+                  </Button>
+                </div>
+              )}
+
+              {/* Step 4: Passkey sign in (existing users) */}
+              {step === "passkey-signin" && (
+                <div className="space-y-4">
+                  {!passkeySupported && (
+                    <div className="bg-destructive/10 text-destructive rounded-lg p-3 text-sm">
+                      Your browser doesn&apos;t support passkeys. Please use a
+                      modern browser like Chrome, Safari, or Edge.
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-center py-4">
+                    <div className="bg-primary/10 flex h-16 w-16 items-center justify-center rounded-full">
+                      {isLoading ? (
+                        <Loader2 className="text-primary h-8 w-8 animate-spin" />
+                      ) : (
+                        <KeyRound className="text-primary h-8 w-8" />
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-muted-foreground text-center text-sm">
+                    {isLoading
+                      ? isMobile
+                        ? "Use Face ID, fingerprint, or PIN on this device."
+                        : "Scan the QR code with your phone and verify with Face ID, fingerprint, or PIN."
+                      : "Use your passkey to verify your identity and complete sign in."}
+                  </p>
+
+                  {error && (
+                    <p className="text-destructive text-center text-sm">
+                      {error}
+                    </p>
+                  )}
+
+                  <Button
+                    onClick={handlePasskeySignIn}
+                    disabled={isLoading || !passkeySupported}
+                    size="lg"
+                    className="w-full"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <KeyRound className="mr-2 h-4 w-4" />
+                    )}
+                    {isLoading ? "Authenticating..." : "Sign In with Passkey"}
+                  </Button>
+                </div>
+              )}
+
+              {/* Step 5: Verify passkey after setup */}
+              {step === "passkey-verify" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center py-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10">
+                      {isLoading ? (
+                        <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+                      ) : (
+                        <CheckCircle2 className="h-8 w-8 text-green-500" />
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-muted-foreground text-center text-sm">
+                    {isLoading
+                      ? "Verifying your passkey..."
+                      : "Your passkey has been created! Now verify it to complete your account setup."}
+                  </p>
+
+                  {error && (
+                    <p className="text-destructive text-center text-sm">
+                      {error}
+                    </p>
+                  )}
+
+                  <Button
+                    onClick={handlePasskeySignIn}
+                    disabled={isLoading || !passkeySupported}
+                    size="lg"
+                    className="w-full"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <KeyRound className="mr-2 h-4 w-4" />
+                    )}
+                    {isLoading ? "Verifying..." : "Verify Passkey"}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full"
+                    onClick={handleCompleteAuth}
                     disabled={isLoading}
-                  />
+                  >
+                    Skip for now
+                  </Button>
                 </div>
-
-                {error && (
-                  <p className="text-destructive text-center text-sm">
-                    {error}
-                  </p>
-                )}
-
-                <Button
-                  type="submit"
-                  disabled={isLoading || !email}
-                  size="lg"
-                  className="w-full"
-                >
-                  {isLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Mail className="mr-2 h-4 w-4" />
-                  )}
-                  Continue
-                </Button>
-
-                <p className="text-muted-foreground text-center text-xs">
-                  We&apos;ll send you a verification link to sign in securely.
-                </p>
-              </form>
-            )}
-
-            {/* Step 2: Email sent */}
-            {step === "email-sent" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-center py-4">
-                  <div className="bg-primary/10 flex h-16 w-16 items-center justify-center rounded-full">
-                    <Mail className="text-primary h-8 w-8" />
-                  </div>
-                </div>
-
-                <p className="text-muted-foreground text-center text-sm">
-                  Click the link in the email to continue. The link will expire
-                  in 1 hour.
-                </p>
-
-                {error && (
-                  <p className="text-destructive text-center text-sm">
-                    {error}
-                  </p>
-                )}
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full"
-                  onClick={handleBack}
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Use a different email
-                </Button>
-              </div>
-            )}
-
-            {/* Step 3: Passkey setup (new users) */}
-            {step === "passkey-setup" && (
-              <div className="space-y-4">
-                {!passkeySupported && (
-                  <div className="bg-destructive/10 text-destructive rounded-lg p-3 text-sm">
-                    Your browser doesn&apos;t support passkeys. Please use a
-                    modern browser like Chrome, Safari, or Edge.
-                  </div>
-                )}
-
-                <div className="flex items-center justify-center py-4">
-                  <div className="bg-primary/10 flex h-16 w-16 items-center justify-center rounded-full">
-                    {isLoading ? (
-                      <Loader2 className="text-primary h-8 w-8 animate-spin" />
-                    ) : (
-                      <KeyRound className="text-primary h-8 w-8" />
-                    )}
-                  </div>
-                </div>
-
-                <p className="text-muted-foreground text-center text-sm">
-                  {isLoading
-                    ? "Scan the QR code with your phone and verify with Face ID, fingerprint, or PIN."
-                    : "A passkey lets you sign in securely using Face ID, fingerprint, or PIN on your device."}
-                </p>
-
-                {error && (
-                  <p className="text-destructive text-center text-sm">
-                    {error}
-                  </p>
-                )}
-
-                <Button
-                  onClick={handlePasskeySetup}
-                  disabled={isLoading || !passkeySupported}
-                  size="lg"
-                  className="w-full"
-                >
-                  {isLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <KeyRound className="mr-2 h-4 w-4" />
-                  )}
-                  {isLoading ? "Setting up passkey..." : "Set Up Passkey"}
-                </Button>
-              </div>
-            )}
-
-            {/* Step 4: Passkey sign in (existing users) */}
-            {step === "passkey-signin" && (
-              <div className="space-y-4">
-                {!passkeySupported && (
-                  <div className="bg-destructive/10 text-destructive rounded-lg p-3 text-sm">
-                    Your browser doesn&apos;t support passkeys. Please use a
-                    modern browser like Chrome, Safari, or Edge.
-                  </div>
-                )}
-
-                <div className="flex items-center justify-center py-4">
-                  <div className="bg-primary/10 flex h-16 w-16 items-center justify-center rounded-full">
-                    {isLoading ? (
-                      <Loader2 className="text-primary h-8 w-8 animate-spin" />
-                    ) : (
-                      <KeyRound className="text-primary h-8 w-8" />
-                    )}
-                  </div>
-                </div>
-
-                <p className="text-muted-foreground text-center text-sm">
-                  {isLoading
-                    ? "Scan the QR code with your phone and verify with Face ID, fingerprint, or PIN."
-                    : "Use your passkey to verify your identity and complete sign in."}
-                </p>
-
-                {error && (
-                  <p className="text-destructive text-center text-sm">
-                    {error}
-                  </p>
-                )}
-
-                <Button
-                  onClick={handlePasskeySignIn}
-                  disabled={isLoading || !passkeySupported}
-                  size="lg"
-                  className="w-full"
-                >
-                  {isLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <KeyRound className="mr-2 h-4 w-4" />
-                  )}
-                  {isLoading ? "Authenticating..." : "Sign In with Passkey"}
-                </Button>
-              </div>
-            )}
-
-            {/* Step 5: Verify passkey after setup */}
-            {step === "passkey-verify" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-center py-4">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10">
-                    {isLoading ? (
-                      <Loader2 className="h-8 w-8 animate-spin text-green-500" />
-                    ) : (
-                      <CheckCircle2 className="h-8 w-8 text-green-500" />
-                    )}
-                  </div>
-                </div>
-
-                <p className="text-muted-foreground text-center text-sm">
-                  {isLoading
-                    ? "Verifying your passkey..."
-                    : "Your passkey has been created! Now verify it to complete your account setup."}
-                </p>
-
-                {error && (
-                  <p className="text-destructive text-center text-sm">
-                    {error}
-                  </p>
-                )}
-
-                <Button
-                  onClick={handlePasskeySignIn}
-                  disabled={isLoading || !passkeySupported}
-                  size="lg"
-                  className="w-full"
-                >
-                  {isLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <KeyRound className="mr-2 h-4 w-4" />
-                  )}
-                  {isLoading ? "Verifying..." : "Verify Passkey"}
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full"
-                  onClick={handleCompleteAuth}
-                  disabled={isLoading}
-                >
-                  Skip for now
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* Show where user will be redirected */}

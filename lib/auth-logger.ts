@@ -175,7 +175,9 @@ export function logAuthEvent(
   // Add user ID (partially masked for privacy)
   if (userId) {
     logEntry.userId =
-      userId.length > 8 ? `${userId.slice(0, 4)}...${userId.slice(-4)}` : userId;
+      userId.length > 8
+        ? `${userId.slice(0, 4)}...${userId.slice(-4)}`
+        : userId;
   }
 
   // Add sanitized metadata

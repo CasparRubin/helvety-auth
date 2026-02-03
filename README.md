@@ -13,7 +13,7 @@ Helvety Auth (`auth.helvety.com`) handles all authentication for Helvety applica
 ## Features
 
 - **Email + Passkey Authentication** - Secure two-factor flow with magic links and biometrics
-- **WebAuthn/FIDO2** - Secure passkey authentication via phone (QR code + biometrics)
+- **WebAuthn/FIDO2** - Device-aware passkey auth: on mobile, use this device (Face ID/fingerprint/PIN); on desktop, use phone via QR code + biometrics
 - **Cross-Subdomain SSO** - Single sign-on across all `*.helvety.com` apps
 - **Redirect URI Support** - Seamless cross-app authentication flows
 
@@ -32,10 +32,12 @@ Authentication uses a secure two-step process: email verification via magic link
 
 ### New User Flow
 
+**Device-aware:** On **mobile** (phone/tablet), the user creates and uses the passkey on the same device (Face ID, fingerprint, or device PIN). On **desktop**, they use their phone to scan a QR code and complete the passkey on the phone.
+
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant P as Phone
+    participant P as Phone/Device
     participant A as Auth Service
     participant S as Supabase
 
@@ -46,22 +48,28 @@ sequenceDiagram
     A->>S: Verify email
     S-->>A: Email verified
     A->>U: Show passkey setup
-    U->>P: Scan QR code
-    P->>U: Verify biometrics
+    alt Desktop
+      U->>P: Scan QR code with phone
+      P->>U: Verify biometrics on phone
+    else Mobile
+      U->>P: Use this device (Face ID / fingerprint / PIN)
+    end
     P->>A: Passkey credential
     A->>S: Store passkey
     A->>U: Verify passkey
-    U->>P: Authenticate
+    U->>P: Authenticate (same device or phone)
     P->>A: Passkey response
     A-->>U: Redirect to app
 ```
 
 ### Returning User Flow
 
+Same device logic: **mobile** = sign in on this device; **desktop** = scan QR with phone and authenticate on phone.
+
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant P as Phone
+    participant P as Phone/Device
     participant A as Auth Service
     participant S as Supabase
 
@@ -72,7 +80,11 @@ sequenceDiagram
     A->>S: Verify email
     S-->>A: Email verified
     A->>U: Show passkey sign-in
-    U->>P: Scan QR code
+    alt Desktop
+      U->>P: Scan QR code with phone
+    else Mobile
+      U->>P: Use this device
+    end
     P->>U: Verify biometrics
     P->>A: Passkey response
     A->>S: Verify passkey + Create session
@@ -232,21 +244,24 @@ Invalid redirect URIs are rejected, and the user is redirected to `helvety.com` 
 
 ### End-to-End Encryption Setup
 
-After passkey authentication, new users are guided through a two-step encryption setup:
+After passkey authentication, new users are guided through a two-step encryption setup. The flow is **device-aware**:
 
 **Step 1: Create Passkey (Registration)**
-- User creates a passkey with their phone via QR code + biometrics
-- The passkey is registered with the WebAuthn PRF extension enabled
-- Server stores the credential and PRF salt parameters
+
+- **On mobile (phone/tablet):** User creates a passkey on this device using Face ID, fingerprint, or device PIN.
+- **On desktop:** User scans a QR code with their phone and creates the passkey on the phone (Face ID or fingerprint).
+- The passkey is registered with the WebAuthn PRF extension enabled. Server stores the credential and PRF salt parameters.
 
 **Step 2: Sign In with Passkey (Verification + Session)**
-- User authenticates with the newly created passkey
-- PRF extension derives a deterministic output from the passkey
-- Client-side HKDF derives the encryption key from PRF output
-- Server verifies the passkey response and creates a session
-- User is redirected to destination app with valid session cookies
+
+- User authenticates with the newly created passkey (same device on mobile, or phone via QR on desktop).
+- PRF extension derives a deterministic output from the passkey.
+- Client-side HKDF derives the encryption key from PRF output.
+- Server verifies the passkey response and creates a session.
+- User is redirected to destination app with valid session cookies.
 
 **Key Features:**
+
 - **Encryption Passkey** - A passkey created using the WebAuthn PRF (Pseudo-Random Function) extension
 - **Key Derivation** - Encryption keys are derived client-side from the PRF output using HKDF
 - **Zero-Knowledge** - The server stores only PRF parameters (salt values); encryption keys are never transmitted
@@ -255,11 +270,13 @@ After passkey authentication, new users are guided through a two-step encryption
 Browser requirements for encryption:
 
 **Desktop:**
+
 - Chrome 128+ or Edge 128+
 - Safari 18+ on Mac
 - Firefox 139+ (desktop only)
 
 **Mobile:**
+
 - iPhone with iOS 18+
 - Android 14+ with Chrome
 
@@ -280,9 +297,11 @@ For questions or inquiries, please contact us at [contact@helvety.com](mailto:co
 This repository is public **for transparency purposes only** so users can verify the application's behavior and security.
 
 **All Rights Reserved.** No license is granted for any use of this code. You may:
+
 - View and inspect the code
 
 You may NOT:
+
 - Clone, copy, or download this code for any purpose
 - Modify, adapt, or create derivative works
 - Redistribute or share this code

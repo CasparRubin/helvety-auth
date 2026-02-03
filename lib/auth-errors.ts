@@ -74,14 +74,14 @@ export const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
     "Unable to connect. Please check your internet connection.",
   [AuthErrorCode.USER_NOT_FOUND]: "No account found with this email address.",
   [AuthErrorCode.UNAUTHORIZED]: "Please sign in to continue.",
-  [AuthErrorCode.FORBIDDEN]: "You don't have permission to perform this action.",
+  [AuthErrorCode.FORBIDDEN]:
+    "You don't have permission to perform this action.",
   [AuthErrorCode.INVALID_REDIRECT]: "Invalid redirect destination.",
   [AuthErrorCode.MAGIC_LINK_INVALID]:
     "This sign-in link has expired or is invalid. Please request a new one.",
   [AuthErrorCode.EMAIL_IN_USE]:
     "An account with this email already exists. Please sign in instead.",
-  [AuthErrorCode.SERVER_ERROR]:
-    "Something went wrong. Please try again later.",
+  [AuthErrorCode.SERVER_ERROR]: "Something went wrong. Please try again later.",
 };
 
 /**

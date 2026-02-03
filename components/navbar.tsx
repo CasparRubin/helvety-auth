@@ -174,7 +174,8 @@ export function Navbar() {
                 <DialogHeader className="pr-8">
                   <DialogTitle>About</DialogTitle>
                   <DialogDescription className="pt-2">
-                    Centralized authentication service for the Helvety ecosystem.
+                    Centralized authentication service for the Helvety
+                    ecosystem.
                   </DialogDescription>
                 </DialogHeader>
                 <>

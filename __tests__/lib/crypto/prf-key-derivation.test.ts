@@ -315,8 +315,7 @@ describe("PRF Key Derivation", () => {
       });
       Object.defineProperty(globalThis, "navigator", {
         value: {
-          userAgent:
-            "Mozilla/5.0 Chrome/130.0.0.0 Safari/537.36",
+          userAgent: "Mozilla/5.0 Chrome/130.0.0.0 Safari/537.36",
         },
         configurable: true,
       });
@@ -332,8 +331,7 @@ describe("PRF Key Derivation", () => {
       });
       Object.defineProperty(globalThis, "navigator", {
         value: {
-          userAgent:
-            "Mozilla/5.0 Chrome/127.0.0.0 Safari/537.36",
+          userAgent: "Mozilla/5.0 Chrome/127.0.0.0 Safari/537.36",
         },
         configurable: true,
       });
@@ -349,8 +347,7 @@ describe("PRF Key Derivation", () => {
       });
       Object.defineProperty(globalThis, "navigator", {
         value: {
-          userAgent:
-            "Mozilla/5.0 Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0",
+          userAgent: "Mozilla/5.0 Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0",
         },
         configurable: true,
       });
@@ -400,7 +397,8 @@ describe("PRF Key Derivation", () => {
       });
       Object.defineProperty(globalThis, "navigator", {
         value: {
-          userAgent: "Mozilla/5.0 (Windows NT 10.0; rv:139.0) Gecko/20100101 Firefox/139.0",
+          userAgent:
+            "Mozilla/5.0 (Windows NT 10.0; rv:139.0) Gecko/20100101 Firefox/139.0",
         },
         configurable: true,
       });

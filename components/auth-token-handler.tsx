@@ -80,7 +80,9 @@ export function AuthTokenHandler() {
         const passkeyVerified = searchParams.get("passkey_verified") === "true";
 
         // Check what auth step the user needs to complete
-        const { step, hasPasskey, hasEncryption } = await getRequiredAuthStep(user.id);
+        const { step, hasPasskey, hasEncryption } = await getRequiredAuthStep(
+          user.id
+        );
 
         // If user has everything set up and passkey_verified is present, redirect to final destination
         // Note: This is a legacy fallback - passkey authentication now creates the session

@@ -136,7 +136,8 @@ export async function unlockPRFEncryption(
  * - Chrome 128+, Edge 128+
  * - Firefox 139+ (desktop only; Android not supported)
  * - Hardware security keys (YubiKey 5+)
- * - Cross-device (phone via QR code) on supported phones
+ * - Platform (this device) on mobile - Face ID, fingerprint, or PIN
+ * - Cross-device (phone via QR code) on supported phones (desktop flow)
  */
 export async function isPRFSupported(): Promise<boolean> {
   // Check if WebAuthn is available

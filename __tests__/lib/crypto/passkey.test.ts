@@ -97,9 +97,8 @@ describe("passkey module", () => {
 
   describe("isPasskeySupported", () => {
     it("should return true when WebAuthn is supported", async () => {
-      const { browserSupportsWebAuthn } = await import(
-        "@simplewebauthn/browser"
-      );
+      const { browserSupportsWebAuthn } =
+        await import("@simplewebauthn/browser");
       vi.mocked(browserSupportsWebAuthn).mockReturnValue(true);
 
       const { isPasskeySupported } = await import("@/lib/crypto/passkey");
@@ -107,9 +106,8 @@ describe("passkey module", () => {
     });
 
     it("should return false when WebAuthn is not supported", async () => {
-      const { browserSupportsWebAuthn } = await import(
-        "@simplewebauthn/browser"
-      );
+      const { browserSupportsWebAuthn } =
+        await import("@simplewebauthn/browser");
       vi.mocked(browserSupportsWebAuthn).mockReturnValue(false);
 
       const { isPasskeySupported } = await import("@/lib/crypto/passkey");
@@ -119,35 +117,30 @@ describe("passkey module", () => {
 
   describe("isPlatformAuthenticatorAvailable", () => {
     it("should return true when platform authenticator is available", async () => {
-      const { platformAuthenticatorIsAvailable } = await import(
-        "@simplewebauthn/browser"
-      );
+      const { platformAuthenticatorIsAvailable } =
+        await import("@simplewebauthn/browser");
       vi.mocked(platformAuthenticatorIsAvailable).mockResolvedValue(true);
 
-      const { isPlatformAuthenticatorAvailable } = await import(
-        "@/lib/crypto/passkey"
-      );
+      const { isPlatformAuthenticatorAvailable } =
+        await import("@/lib/crypto/passkey");
       expect(await isPlatformAuthenticatorAvailable()).toBe(true);
     });
 
     it("should return false when platform authenticator is not available", async () => {
-      const { platformAuthenticatorIsAvailable } = await import(
-        "@simplewebauthn/browser"
-      );
+      const { platformAuthenticatorIsAvailable } =
+        await import("@simplewebauthn/browser");
       vi.mocked(platformAuthenticatorIsAvailable).mockResolvedValue(false);
 
-      const { isPlatformAuthenticatorAvailable } = await import(
-        "@/lib/crypto/passkey"
-      );
+      const { isPlatformAuthenticatorAvailable } =
+        await import("@/lib/crypto/passkey");
       expect(await isPlatformAuthenticatorAvailable()).toBe(false);
     });
   });
 
   describe("PasskeyError", () => {
     it("should create error with type and message", async () => {
-      const { PasskeyError, PasskeyErrorType } = await import(
-        "@/lib/crypto/passkey"
-      );
+      const { PasskeyError, PasskeyErrorType } =
+        await import("@/lib/crypto/passkey");
 
       const error = new PasskeyError(
         PasskeyErrorType.CANCELLED,
@@ -161,9 +154,8 @@ describe("passkey module", () => {
     });
 
     it("should create error with cause", async () => {
-      const { PasskeyError, PasskeyErrorType } = await import(
-        "@/lib/crypto/passkey"
-      );
+      const { PasskeyError, PasskeyErrorType } =
+        await import("@/lib/crypto/passkey");
 
       const originalError = new Error("Original error");
       const error = new PasskeyError(
@@ -202,9 +194,8 @@ describe("passkey module", () => {
     });
 
     it("should generate valid registration options", async () => {
-      const { generateRegistrationOptions } = await import(
-        "@/lib/crypto/passkey"
-      );
+      const { generateRegistrationOptions } =
+        await import("@/lib/crypto/passkey");
 
       const options = generateRegistrationOptions(
         "user-123",
@@ -223,9 +214,8 @@ describe("passkey module", () => {
     });
 
     it("should use email as displayName when userName is empty", async () => {
-      const { generateRegistrationOptions } = await import(
-        "@/lib/crypto/passkey"
-      );
+      const { generateRegistrationOptions } =
+        await import("@/lib/crypto/passkey");
 
       const options = generateRegistrationOptions(
         "user-123",
@@ -237,9 +227,8 @@ describe("passkey module", () => {
     });
 
     it("should include PRF extension when salt is provided", async () => {
-      const { generateRegistrationOptions } = await import(
-        "@/lib/crypto/passkey"
-      );
+      const { generateRegistrationOptions } =
+        await import("@/lib/crypto/passkey");
 
       // Base64 encoded salt
       const prfSalt = btoa("test-salt-value");
@@ -258,9 +247,8 @@ describe("passkey module", () => {
     });
 
     it("should not include PRF extension when salt is not provided", async () => {
-      const { generateRegistrationOptions } = await import(
-        "@/lib/crypto/passkey"
-      );
+      const { generateRegistrationOptions } =
+        await import("@/lib/crypto/passkey");
 
       const options = generateRegistrationOptions(
         "user-123",
@@ -270,6 +258,54 @@ describe("passkey module", () => {
 
       const extensions = (options as { extensions?: unknown }).extensions;
       expect(extensions).toBeUndefined();
+    });
+
+    it("should use platform authenticator and client-device hint when preferPlatform is true", async () => {
+      const { generateRegistrationOptions } =
+        await import("@/lib/crypto/passkey");
+
+      const options = generateRegistrationOptions(
+        "user-123",
+        "test@example.com",
+        "Test User",
+        undefined,
+        true
+      );
+
+      expect(options.authenticatorSelection?.authenticatorAttachment).toBe(
+        "platform"
+      );
+      const hints = (options as { hints?: string[] }).hints;
+      expect(hints).toEqual(["client-device"]);
+    });
+
+    it("should use cross-platform authenticator and hybrid hint when preferPlatform is false or omitted", async () => {
+      const { generateRegistrationOptions } =
+        await import("@/lib/crypto/passkey");
+
+      const optionsDefault = generateRegistrationOptions(
+        "user-123",
+        "test@example.com",
+        "Test User"
+      );
+      const optionsFalse = generateRegistrationOptions(
+        "user-123",
+        "test@example.com",
+        "Test User",
+        undefined,
+        false
+      );
+
+      expect(
+        optionsDefault.authenticatorSelection?.authenticatorAttachment
+      ).toBe("cross-platform");
+      expect(optionsFalse.authenticatorSelection?.authenticatorAttachment).toBe(
+        "cross-platform"
+      );
+      expect((optionsDefault as { hints?: string[] }).hints).toEqual([
+        "hybrid",
+      ]);
+      expect((optionsFalse as { hints?: string[] }).hints).toEqual(["hybrid"]);
     });
   });
 
@@ -288,9 +324,8 @@ describe("passkey module", () => {
     });
 
     it("should generate valid authentication options", async () => {
-      const { generateAuthenticationOptions } = await import(
-        "@/lib/crypto/passkey"
-      );
+      const { generateAuthenticationOptions } =
+        await import("@/lib/crypto/passkey");
 
       const options = generateAuthenticationOptions();
 
@@ -301,9 +336,8 @@ describe("passkey module", () => {
     });
 
     it("should include allowed credentials when provided", async () => {
-      const { generateAuthenticationOptions } = await import(
-        "@/lib/crypto/passkey"
-      );
+      const { generateAuthenticationOptions } =
+        await import("@/lib/crypto/passkey");
 
       const credentialIds = ["cred-1", "cred-2"];
       const options = generateAuthenticationOptions(credentialIds);
@@ -314,9 +348,8 @@ describe("passkey module", () => {
     });
 
     it("should include PRF extension when salt is provided", async () => {
-      const { generateAuthenticationOptions } = await import(
-        "@/lib/crypto/passkey"
-      );
+      const { generateAuthenticationOptions } =
+        await import("@/lib/crypto/passkey");
 
       const prfSalt = btoa("test-salt");
       const options = generateAuthenticationOptions(undefined, prfSalt);
@@ -325,6 +358,33 @@ describe("passkey module", () => {
         options as { extensions?: { prf?: { eval?: { first?: Uint8Array } } } }
       ).extensions;
       expect(extensions?.prf).toBeDefined();
+    });
+
+    it("should use client-device hint when preferPlatform is true", async () => {
+      const { generateAuthenticationOptions } =
+        await import("@/lib/crypto/passkey");
+
+      const options = generateAuthenticationOptions(undefined, undefined, true);
+
+      const hints = (options as { hints?: string[] }).hints;
+      expect(hints).toEqual(["client-device"]);
+    });
+
+    it("should use hybrid hint when preferPlatform is false or omitted", async () => {
+      const { generateAuthenticationOptions } =
+        await import("@/lib/crypto/passkey");
+
+      const optionsDefault = generateAuthenticationOptions();
+      const optionsFalse = generateAuthenticationOptions(
+        undefined,
+        undefined,
+        false
+      );
+
+      expect((optionsDefault as { hints?: string[] }).hints).toEqual([
+        "hybrid",
+      ]);
+      expect((optionsFalse as { hints?: string[] }).hints).toEqual(["hybrid"]);
     });
   });
 
@@ -358,10 +418,8 @@ describe("passkey module", () => {
         authenticatorAttachment: "cross-platform",
       });
 
-      const {
-        registerPasskey,
-        generateRegistrationOptions,
-      } = await import("@/lib/crypto/passkey");
+      const { registerPasskey, generateRegistrationOptions } =
+        await import("@/lib/crypto/passkey");
 
       const options = generateRegistrationOptions(
         "user-123",
@@ -381,11 +439,8 @@ describe("passkey module", () => {
       cancelError.name = "NotAllowedError";
       vi.mocked(startRegistration).mockRejectedValue(cancelError);
 
-      const {
-        registerPasskey,
-        generateRegistrationOptions,
-        PasskeyErrorType,
-      } = await import("@/lib/crypto/passkey");
+      const { registerPasskey, generateRegistrationOptions, PasskeyErrorType } =
+        await import("@/lib/crypto/passkey");
 
       const options = generateRegistrationOptions(
         "user-123",
@@ -404,11 +459,8 @@ describe("passkey module", () => {
       existsError.name = "InvalidStateError";
       vi.mocked(startRegistration).mockRejectedValue(existsError);
 
-      const {
-        registerPasskey,
-        generateRegistrationOptions,
-        PasskeyErrorType,
-      } = await import("@/lib/crypto/passkey");
+      const { registerPasskey, generateRegistrationOptions, PasskeyErrorType } =
+        await import("@/lib/crypto/passkey");
 
       const options = generateRegistrationOptions(
         "user-123",
@@ -425,11 +477,8 @@ describe("passkey module", () => {
       const { startRegistration } = await import("@simplewebauthn/browser");
       vi.mocked(startRegistration).mockRejectedValue(new Error("Some error"));
 
-      const {
-        registerPasskey,
-        generateRegistrationOptions,
-        PasskeyErrorType,
-      } = await import("@/lib/crypto/passkey");
+      const { registerPasskey, generateRegistrationOptions, PasskeyErrorType } =
+        await import("@/lib/crypto/passkey");
 
       const options = generateRegistrationOptions(
         "user-123",
@@ -475,10 +524,8 @@ describe("passkey module", () => {
         authenticatorAttachment: "cross-platform",
       });
 
-      const {
-        authenticateWithPasskey,
-        generateAuthenticationOptions,
-      } = await import("@/lib/crypto/passkey");
+      const { authenticateWithPasskey, generateAuthenticationOptions } =
+        await import("@/lib/crypto/passkey");
 
       const options = generateAuthenticationOptions();
       const result = await authenticateWithPasskey(options);
@@ -503,10 +550,8 @@ describe("passkey module", () => {
         authenticatorAttachment: "cross-platform",
       });
 
-      const {
-        authenticateWithPasskey,
-        generateAuthenticationOptions,
-      } = await import("@/lib/crypto/passkey");
+      const { authenticateWithPasskey, generateAuthenticationOptions } =
+        await import("@/lib/crypto/passkey");
 
       const options = generateAuthenticationOptions();
       const result = await authenticateWithPasskey(options);
@@ -585,9 +630,8 @@ describe("passkey module", () => {
         authenticatorAttachment: "cross-platform",
       });
 
-      const { registerPasskeyWithEncryption } = await import(
-        "@/lib/crypto/passkey"
-      );
+      const { registerPasskeyWithEncryption } =
+        await import("@/lib/crypto/passkey");
 
       const prfSalt = btoa("encryption-salt");
       const result = await registerPasskeyWithEncryption(
@@ -633,9 +677,8 @@ describe("passkey module", () => {
         authenticatorAttachment: "cross-platform",
       });
 
-      const { authenticatePasskeyWithEncryption } = await import(
-        "@/lib/crypto/passkey"
-      );
+      const { authenticatePasskeyWithEncryption } =
+        await import("@/lib/crypto/passkey");
 
       const prfSalt = btoa("encryption-salt");
       const result = await authenticatePasskeyWithEncryption(

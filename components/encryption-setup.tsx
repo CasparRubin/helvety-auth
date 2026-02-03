@@ -34,9 +34,8 @@ import {
 import { useEncryptionContext, PRF_VERSION } from "@/lib/crypto";
 import { storeMasterKey } from "@/lib/crypto/key-storage";
 import { registerPasskey } from "@/lib/crypto/passkey";
-import {
-  deriveKeyFromPRF,
-} from "@/lib/crypto/prf-key-derivation";
+import { deriveKeyFromPRF } from "@/lib/crypto/prf-key-derivation";
+import { isMobileDevice } from "@/lib/device-utils";
 import { logger } from "@/lib/logger";
 
 /**
@@ -64,20 +63,24 @@ interface RegistrationData {
 }
 
 /**
- * Component for setting up encryption with passkey
- * Uses WebAuthn PRF extension to derive encryption keys from device biometrics
- * Also registers the passkey for authentication (passwordless login)
+ * Component for setting up encryption with passkey.
+ * Uses WebAuthn PRF extension to derive encryption keys from device biometrics.
+ * Also registers the passkey for authentication (passwordless login).
  *
  * Flow: initial → registering → ready_to_sign_in → signing_in → complete
  *
- * Step 1: User clicks "Set Up with Phone"
- *   - Creates passkey on phone via QR code + biometrics
- *   - Registers credential with server (stores public key, PRF salt)
+ * Device-aware: On mobile, passkey is created/used on this device (Face ID, fingerprint, PIN).
+ * On desktop, user scans QR code with phone and uses the phone for passkey.
  *
- * Step 2: User clicks "Sign In with Phone"
- *   - Authenticates with passkey to derive encryption key via PRF
- *   - Calls verifyPasskeyAuthentication to create server session
- *   - Redirects to destination app with valid session cookies
+ * Step 1: User clicks "Set Up with This Device" (mobile) or "Set Up with Phone" (desktop)
+ *   - Mobile: Creates passkey on this device with platform authenticator.
+ *   - Desktop: Creates passkey on phone via QR code + biometrics.
+ *   - Registers credential with server (stores public key, PRF salt).
+ *
+ * Step 2: User clicks "Sign In with Passkey" (mobile) or "Sign In with Phone" (desktop)
+ *   - Authenticates with passkey to derive encryption key via PRF.
+ *   - Calls verifyPasskeyAuthentication to create server session.
+ *   - Redirects to destination app with valid session cookies.
  */
 export function EncryptionSetup({
   userId,
@@ -94,10 +97,17 @@ export function EncryptionSetup({
   const [setupStep, setSetupStep] = useState<SetupStep>("initial");
   const [registrationData, setRegistrationData] =
     useState<RegistrationData | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const setupInProgressRef = useRef(false);
 
   // Get the current auth step for the stepper
   const currentAuthStep = getSetupStep(setupStep);
+
+  // Device detection for passkey flow (client-only, set on mount)
+  useEffect(() => {
+    const id = setTimeout(() => setIsMobile(isMobileDevice()), 0);
+    return () => clearTimeout(id);
+  }, []);
 
   // Check PRF support on mount
   useEffect(() => {
@@ -130,7 +140,9 @@ export function EncryptionSetup({
       const origin = window.location.origin;
 
       // Generate server-side registration options for auth (includes PRF salt)
-      const serverOptions = await generatePasskeyRegistrationOptions(origin);
+      const serverOptions = await generatePasskeyRegistrationOptions(origin, {
+        isMobile: isMobileDevice(),
+      });
       if (!serverOptions.success || !serverOptions.data) {
         setError(
           serverOptions.error ?? "Failed to generate registration options"
@@ -237,7 +249,8 @@ export function EncryptionSetup({
       // 1. Get server-generated auth options (stores challenge for verification)
       const serverOptions = await generatePasskeyAuthOptions(
         origin,
-        redirectUri ?? undefined
+        redirectUri ?? undefined,
+        { isMobile: isMobileDevice() }
       );
       if (!serverOptions.success || !serverOptions.data) {
         setError(serverOptions.error ?? "Failed to start authentication");
@@ -267,7 +280,9 @@ export function EncryptionSetup({
       // 3. Do WebAuthn authentication (gets PRF output AND response for server)
       let authResponse;
       try {
-        authResponse = await startAuthentication({ optionsJSON: optionsWithPRF });
+        authResponse = await startAuthentication({
+          optionsJSON: optionsWithPRF,
+        });
       } catch (err) {
         const message =
           err instanceof Error
@@ -417,7 +432,11 @@ export function EncryptionSetup({
               <ShieldCheck className="text-primary h-5 w-5" />
               <CardTitle>Create Passkey</CardTitle>
             </div>
-            <CardDescription>Save the passkey to your phone</CardDescription>
+            <CardDescription>
+              {isMobile
+                ? "Save the passkey on this device"
+                : "Save the passkey to your phone"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3 rounded-lg border p-4">
@@ -426,17 +445,22 @@ export function EncryptionSetup({
                   <Loader2 className="text-primary h-5 w-5 animate-spin" />
                 </div>
                 <div>
-                  <p className="font-medium">Scan QR Code</p>
+                  <p className="font-medium">
+                    {isMobile ? "Use this device" : "Scan QR Code"}
+                  </p>
                   <p className="text-muted-foreground text-sm">
-                    Use your phone to scan the QR code
+                    {isMobile
+                      ? "Use Face ID, fingerprint, or device PIN"
+                      : "Use your phone to scan the QR code"}
                   </p>
                 </div>
               </div>
 
               <div className="border-t pt-2">
                 <p className="text-muted-foreground text-sm">
-                  Scan the QR code with your phone and save the passkey using
-                  Face ID or fingerprint.
+                  {isMobile
+                    ? "Create the passkey on this device using Face ID, fingerprint, or your device PIN."
+                    : "Scan the QR code with your phone and save the passkey using Face ID or fingerprint."}
                 </p>
               </div>
             </div>
@@ -445,7 +469,9 @@ export function EncryptionSetup({
 
             <div className="flex items-center justify-center py-2">
               <p className="text-muted-foreground text-sm">
-                Waiting for your phone...
+                {isMobile
+                  ? "Waiting for verification..."
+                  : "Waiting for your phone..."}
               </p>
             </div>
           </CardContent>
@@ -472,8 +498,9 @@ export function EncryptionSetup({
           <CardContent className="space-y-4">
             <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
               <p className="text-sm text-green-600 dark:text-green-400">
-                Your passkey has been saved to your phone. Sign in once more to
-                activate encryption.
+                {isMobile
+                  ? "Your passkey has been saved to this device. Sign in once more to activate encryption."
+                  : "Your passkey has been saved to your phone. Sign in once more to activate encryption."}
               </p>
             </div>
 
@@ -486,7 +513,7 @@ export function EncryptionSetup({
               size="lg"
             >
               <Smartphone className="mr-2 h-4 w-4" />
-              Sign In with Phone
+              {isMobile ? "Sign In with Passkey" : "Sign In with Phone"}
             </Button>
           </CardContent>
         </Card>
@@ -516,17 +543,22 @@ export function EncryptionSetup({
                   <Loader2 className="text-primary h-5 w-5 animate-spin" />
                 </div>
                 <div>
-                  <p className="font-medium">Scan QR Code</p>
+                  <p className="font-medium">
+                    {isMobile ? "Use this device" : "Scan QR Code"}
+                  </p>
                   <p className="text-muted-foreground text-sm">
-                    Use your phone to scan the QR code
+                    {isMobile
+                      ? "Use Face ID, fingerprint, or device PIN"
+                      : "Use your phone to scan the QR code"}
                   </p>
                 </div>
               </div>
 
               <div className="border-t pt-2">
                 <p className="text-muted-foreground text-sm">
-                  Scan the QR code with your phone and authenticate using Face
-                  ID or fingerprint.
+                  {isMobile
+                    ? "Authenticate on this device using Face ID, fingerprint, or your device PIN."
+                    : "Scan the QR code with your phone and authenticate using Face ID or fingerprint."}
                 </p>
               </div>
             </div>
@@ -535,7 +567,9 @@ export function EncryptionSetup({
 
             <div className="flex items-center justify-center py-2">
               <p className="text-muted-foreground text-sm">
-                Waiting for your phone...
+                {isMobile
+                  ? "Waiting for verification..."
+                  : "Waiting for your phone..."}
               </p>
             </div>
           </CardContent>
@@ -555,8 +589,9 @@ export function EncryptionSetup({
             <CardTitle>Set Up Encryption</CardTitle>
           </div>
           <CardDescription>
-            Use your iPhone, iPad, or Android phone to secure your data with
-            end-to-end encryption.
+            {isMobile
+              ? "Secure your data with a passkey on this device (Face ID, fingerprint, or PIN)."
+              : "Use your iPhone, iPad, or Android phone to secure your data with end-to-end encryption."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -566,9 +601,9 @@ export function EncryptionSetup({
               <div className="text-sm text-amber-500">
                 <p className="font-medium">Important</p>
                 <p className="mt-1 text-amber-500/80">
-                  Your passkey is the only way to decrypt your data. If you
-                  remove the passkey from your phone, your data cannot be
-                  recovered.
+                  {isMobile
+                    ? "Your passkey is the only way to decrypt your data. If you remove the passkey from this device, your data cannot be recovered."
+                    : "Your passkey is the only way to decrypt your data. If you remove the passkey from your phone, your data cannot be recovered."}
                 </p>
               </div>
             </div>
@@ -580,16 +615,28 @@ export function EncryptionSetup({
                 <Fingerprint className="text-primary h-5 w-5" />
               </div>
               <div>
-                <p className="font-medium">Phone Passkey</p>
+                <p className="font-medium">
+                  {isMobile ? "Passkey on this device" : "Phone Passkey"}
+                </p>
                 <p className="text-muted-foreground text-sm">
                   Secured with Face ID or fingerprint
                 </p>
               </div>
             </div>
             <ul className="text-muted-foreground ml-13 space-y-1 text-sm">
-              <li>• Scan QR code with your phone</li>
-              <li>• Verify with Face ID or fingerprint</li>
-              <li>• Your data stays encrypted</li>
+              {isMobile ? (
+                <>
+                  <li>• Create passkey on this device</li>
+                  <li>• Verify with Face ID, fingerprint, or device PIN</li>
+                  <li>• Your data stays encrypted</li>
+                </>
+              ) : (
+                <>
+                  <li>• Scan QR code with your phone</li>
+                  <li>• Verify with Face ID or fingerprint</li>
+                  <li>• Your data stays encrypted</li>
+                </>
+              )}
             </ul>
           </div>
 
@@ -609,13 +656,15 @@ export function EncryptionSetup({
             ) : (
               <>
                 <Smartphone className="mr-2 h-4 w-4" />
-                Set Up with Phone
+                {isMobile ? "Set Up with This Device" : "Set Up with Phone"}
               </>
             )}
           </Button>
 
           <p className="text-muted-foreground text-center text-xs">
-            You&apos;ll scan two QR codes with your phone to complete setup.
+            {isMobile
+              ? "You'll create a passkey on this device and then sign in once to complete setup."
+              : "You'll scan two QR codes with your phone to complete setup."}
           </p>
         </CardContent>
       </Card>

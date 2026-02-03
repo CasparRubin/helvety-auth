@@ -119,11 +119,12 @@ export async function sendMagicLink(
   );
 
   if (!emailRateLimit.allowed || !ipRateLimit.allowed) {
-    const retryAfter = emailRateLimit.retryAfter ?? ipRateLimit.retryAfter ?? 60;
+    const retryAfter =
+      emailRateLimit.retryAfter ?? ipRateLimit.retryAfter ?? 60;
     logAuthEvent("rate_limit_exceeded", {
       metadata: {
         action: "sendMagicLink",
-        email: `${normalizedEmail.slice(0, 3)  }***`,
+        email: `${normalizedEmail.slice(0, 3)}***`,
         retryAfter,
       },
       ip: clientIP,
@@ -369,17 +370,23 @@ async function clearChallenge(): Promise<void> {
  * Called when a user wants to add a new passkey to their existing account
  *
  * This includes PRF extension for E2EE encryption key derivation.
+ * When isMobile is true, uses platform authenticator (this device); otherwise
+ * uses cross-platform/hybrid (phone via QR) for desktop.
  *
  * @param origin - The origin URL (e.g., 'https://auth.helvety.com')
+ * @param options - Optional { isMobile } to choose platform vs hybrid flow
  * @returns Registration options to pass to the WebAuthn API
  */
 export async function generatePasskeyRegistrationOptions(
-  origin: string
+  origin: string,
+  options?: { isMobile?: boolean }
 ): Promise<
   PasskeyActionResponse<
     PublicKeyCredentialCreationOptionsJSON & { prfSalt: string }
   >
 > {
+  const isMobile = options?.isMobile === true;
+
   try {
     const supabase = await createClient();
 
@@ -417,32 +424,42 @@ export async function generatePasskeyRegistrationOptions(
       userID: new TextEncoder().encode(user.id), // Keep UUID for internal WebAuthn ID
       attestationType: "none",
       excludeCredentials,
-      authenticatorSelection: {
-        // Force cross-platform authenticators (phone via QR code)
-        authenticatorAttachment: "cross-platform",
-        userVerification: "required",
-        residentKey: "required",
-        requireResidentKey: true,
-      },
+      authenticatorSelection: isMobile
+        ? {
+            authenticatorAttachment: "platform",
+            userVerification: "required",
+            residentKey: "required",
+            requireResidentKey: true,
+          }
+        : {
+            authenticatorAttachment: "cross-platform",
+            userVerification: "required",
+            residentKey: "required",
+            requireResidentKey: true,
+          },
       timeout: 60000,
     };
 
-    const options = await generateRegOptions(opts);
+    const regOptions = await generateRegOptions(opts);
 
     // Generate PRF salt for encryption key derivation
     const prfSalt = generatePRFSalt();
 
-    // Add hints to prefer phone/hybrid authenticators over USB security keys
+    // Hints: mobile = this device; desktop = phone via QR (hybrid)
     // Note: PRF extension is added client-side in encryption-setup.tsx since
     // Uint8Array cannot be serialized from server to client components
     const optionsWithHints = {
-      ...options,
-      hints: ["hybrid"] as ("hybrid" | "security-key" | "client-device")[],
+      ...regOptions,
+      hints: (isMobile ? ["client-device"] : ["hybrid"]) as (
+        | "hybrid"
+        | "security-key"
+        | "client-device"
+      )[],
     };
 
     // Store challenge and PRF salt for verification
     await storeChallenge({
-      challenge: options.challenge,
+      challenge: regOptions.challenge,
       userId: user.id,
       prfSalt,
     });
@@ -472,9 +489,7 @@ export async function verifyPasskeyRegistration(
   response: RegistrationResponseJSON,
   origin: string,
   prfEnabled: boolean = false
-): Promise<
-  PasskeyActionResponse<{ credentialId: string; prfSalt?: string }>
-> {
+): Promise<PasskeyActionResponse<{ credentialId: string; prfSalt?: string }>> {
   try {
     const supabase = await createClient();
 
@@ -600,14 +615,19 @@ export async function verifyPasskeyRegistration(
  * - Rate limited to prevent brute force attacks
  * - Logs all attempts for audit trail
  *
+ * When isMobile is true, hints client-device (this device); otherwise hybrid (phone via QR).
+ *
  * @param origin - The origin URL
  * @param redirectUri - Optional redirect URI to preserve through auth flow
+ * @param options - Optional { isMobile } to choose platform vs hybrid flow
  * @returns Authentication options to pass to the WebAuthn API
  */
 export async function generatePasskeyAuthOptions(
   origin: string,
-  redirectUri?: string
+  redirectUri?: string,
+  authOptions?: { isMobile?: boolean }
 ): Promise<PasskeyActionResponse<PublicKeyCredentialRequestOptionsJSON>> {
+  const isMobile = authOptions?.isMobile === true;
   const clientIP = await getClientIP();
 
   // Rate limit by IP
@@ -619,7 +639,10 @@ export async function generatePasskeyAuthOptions(
 
   if (!rateLimit.allowed) {
     logAuthEvent("rate_limit_exceeded", {
-      metadata: { action: "generatePasskeyAuthOptions", retryAfter: rateLimit.retryAfter },
+      metadata: {
+        action: "generatePasskeyAuthOptions",
+        retryAfter: rateLimit.retryAfter,
+      },
       ip: clientIP,
     });
     return {
@@ -643,17 +666,21 @@ export async function generatePasskeyAuthOptions(
       allowCredentials: [],
     };
 
-    const options = await generateAuthOptions(opts);
+    const authOpts = await generateAuthOptions(opts);
 
-    // Add hints to prefer phone/hybrid authenticators over USB security keys
+    // Hints: mobile = this device; desktop = phone via QR (hybrid)
     const optionsWithHints = {
-      ...options,
-      hints: ["hybrid"] as ("hybrid" | "security-key" | "client-device")[],
+      ...authOpts,
+      hints: (isMobile ? ["client-device"] : ["hybrid"]) as (
+        | "hybrid"
+        | "security-key"
+        | "client-device"
+      )[],
     };
 
     // Store challenge for verification (no userId yet - we don't know who's authenticating)
     await storeChallenge({
-      challenge: options.challenge,
+      challenge: authOpts.challenge,
       redirectUri,
     });
 
@@ -784,7 +811,10 @@ export async function verifyPasskeyAuthentication(
       .eq("credential_id", response.id);
 
     if (updateError) {
-      logger.error("Error updating counter - failing auth for security:", updateError);
+      logger.error(
+        "Error updating counter - failing auth for security:",
+        updateError
+      );
       return {
         success: false,
         error: "Authentication failed - please try again",

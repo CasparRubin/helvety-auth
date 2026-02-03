@@ -87,7 +87,9 @@ if (typeof window !== "undefined") {
       static isUserVerifyingPlatformAuthenticatorAvailable = vi.fn(() =>
         Promise.resolve(true)
       );
-      static isConditionalMediationAvailable = vi.fn(() => Promise.resolve(true));
+      static isConditionalMediationAvailable = vi.fn(() =>
+        Promise.resolve(true)
+      );
     },
     writable: true,
     configurable: true,
