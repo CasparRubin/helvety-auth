@@ -213,7 +213,7 @@ CREATE TABLE user_passkey_params (
 - **Counter Tracking** - Prevents passkey replay attacks
 - **Redirect URI Validation** - All redirect URIs are validated against a strict allowlist to prevent open redirect attacks
 
-### Security Hardening (Added Feb 2026)
+### Security Hardening (Added Feb 2025)
 
 The auth service implements comprehensive security hardening:
 
