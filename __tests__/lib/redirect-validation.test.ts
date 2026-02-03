@@ -23,9 +23,18 @@ describe("redirect-validation", () => {
         );
       });
 
-      it("should accept store.helvety.com", () => {
+      it("should accept store.helvety.com and its routes", () => {
         expect(isValidRedirectUri("https://store.helvety.com")).toBe(true);
         expect(isValidRedirectUri("https://store.helvety.com/products")).toBe(
+          true
+        );
+        expect(isValidRedirectUri("https://store.helvety.com/account")).toBe(
+          true
+        );
+        expect(
+          isValidRedirectUri("https://store.helvety.com/subscriptions")
+        ).toBe(true);
+        expect(isValidRedirectUri("https://store.helvety.com/tenants")).toBe(
           true
         );
       });

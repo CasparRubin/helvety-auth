@@ -12,7 +12,7 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_PROJECT_URL;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
@@ -49,10 +49,10 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  // IMPORTANT: Refresh the session by calling getUser()
-  // This will refresh expired sessions and update cookies automatically
-  // Do NOT remove this line - it's essential for session management
-  await supabase.auth.getUser();
+  // Validate JWT and refresh session only when needed (getClaims validates
+  // locally; Auth API is called only on refresh). Avoids 429 rate limits
+  // from calling getUser() on every request.
+  await supabase.auth.getClaims();
 
   return supabaseResponse;
 }

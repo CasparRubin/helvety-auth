@@ -1,5 +1,10 @@
 # Helvety Auth
 
+![Next.js](https://img.shields.io/badge/Next.js-16.1.6-black?style=flat-square&logo=next.js)
+![React](https://img.shields.io/badge/React-19.2.4-61DAFB?style=flat-square&logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=flat-square&logo=typescript)
+![License](https://img.shields.io/badge/License-All%20Rights%20Reserved-red?style=flat-square)
+
 Centralized authentication service for the Helvety ecosystem, providing passwordless SSO across all Helvety applications.
 
 ## Overview
@@ -19,12 +24,16 @@ Helvety Auth (`auth.helvety.com`) handles all authentication for Helvety applica
 
 ## Tech Stack
 
-- **Framework**: Next.js 16 (App Router)
+- **Framework**: Next.js 16.1.6 (App Router)
 - **Language**: TypeScript
 - **Authentication**: Supabase Auth + SimpleWebAuthn
 - **Styling**: Tailwind CSS 4 + shadcn/ui
 - **Testing**: Vitest
 - **Deployment**: Vercel
+
+**Environment:** Copy `env.template` to `.env.local` and set `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and (for server-side) `SUPABASE_SECRET_KEY`. Node.js 20.9+ required.
+
+**Pre-deployment:** Run `npm run predeploy` to run format check, type check, lint, tests, and production build.
 
 ## Authentication Flows
 
@@ -137,13 +146,13 @@ Signs out the user and redirects.
 
 ## Session Management (proxy.ts)
 
-The `proxy.ts` middleware handles session refresh and cross-subdomain cookie management:
+The proxy (`proxy.ts`) handles session validation and refresh and cross-subdomain cookie management:
 
-- **Session Refresh** - Automatically refreshes Supabase auth sessions on every request before they expire
+- **Session Validation & Refresh** - Uses `getClaims()` to validate the JWT locally (no Auth API call when the token is valid). The Supabase Auth API is only called when a token refresh is needed (e.g. near or past expiry). Refreshed tokens are written to cookies automatically.
 - **Cross-Subdomain SSO** - Sets cookies with `.helvety.com` domain in production for session sharing across all Helvety apps
 - **Server Component Support** - Ensures server components always have access to fresh session data
 
-The middleware runs on all routes except static assets and handles the Supabase session lifecycle transparently.
+The proxy runs on all routes except static assets and handles the Supabase session lifecycle transparently.
 
 ## Cross-App Authentication
 
@@ -213,7 +222,7 @@ CREATE TABLE user_passkey_params (
 - **Counter Tracking** - Prevents passkey replay attacks
 - **Redirect URI Validation** - All redirect URIs are validated against a strict allowlist to prevent open redirect attacks
 
-### Security Hardening (Added Feb 2025)
+### Security Hardening
 
 The auth service implements comprehensive security hardening:
 
@@ -282,7 +291,7 @@ Browser requirements for encryption:
 
 **Note:** Firefox for Android does not support the PRF extension.
 
-**Legal Pages:** Privacy Policy, Terms of Service, and Impressum are hosted centrally on [helvety.com](https://helvety.com) and linked from the navbar.
+**Legal Pages:** Privacy Policy, Terms of Service, and Impressum are hosted centrally on [helvety.com](https://helvety.com) and linked in the site footer.
 
 ## Developer
 

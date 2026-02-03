@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import "./globals.css";
 
 import { AuthTokenHandler } from "@/components/auth-token-handler";
+import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -82,7 +83,7 @@ export const metadata: Metadata = {
 };
 
 /**
- *
+ * Root layout: sticky header (Navbar), scrollable main, sticky footer (contact + legal links).
  */
 export default function RootLayout({
   children,
@@ -103,8 +104,17 @@ export default function RootLayout({
               <Suspense>
                 <AuthTokenHandler />
               </Suspense>
-              <Navbar />
-              <div className="mx-auto w-full max-w-[2000px]">{children}</div>
+              <div className="flex min-h-screen flex-col">
+                <header className="shrink-0">
+                  <Navbar />
+                </header>
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="mx-auto w-full max-w-[2000px]">
+                    {children}
+                  </div>
+                </div>
+                <Footer />
+              </div>
               <Toaster />
             </TooltipProvider>
           </EncryptionProvider>

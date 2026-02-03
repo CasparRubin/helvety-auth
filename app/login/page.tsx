@@ -39,7 +39,7 @@ import { createClient } from "@/lib/supabase/client";
 type LoginStep =
   | "email" // Enter email
   | "email-sent" // Magic link sent, check your email
-  | "passkey-setup" // Set up new passkey (deprecated, now uses encryption-setup)
+  | "passkey-setup" // deprecated: use encryption-setup
   | "passkey-signin" // Sign in with existing passkey
   | "passkey-verify" // Verify newly created passkey
   | "encryption-setup"; // Set up encryption with passkey

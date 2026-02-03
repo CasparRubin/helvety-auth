@@ -70,12 +70,11 @@ function validateAnonKey(key: string): boolean {
  * Environment variable schema validation
  */
 const envSchema = z.object({
-  NEXT_PUBLIC_SUPABASE_PROJECT_URL: z
+  NEXT_PUBLIC_SUPABASE_URL: z
     .string()
-    .url("NEXT_PUBLIC_SUPABASE_PROJECT_URL must be a valid URL")
+    .url("NEXT_PUBLIC_SUPABASE_URL must be a valid URL")
     .refine((url) => url.startsWith("https://") || url.startsWith("http://"), {
-      message:
-        "NEXT_PUBLIC_SUPABASE_PROJECT_URL must start with http:// or https://",
+      message: "NEXT_PUBLIC_SUPABASE_URL must start with http:// or https://",
     }),
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z
     .string()
@@ -107,17 +106,17 @@ export function getValidatedEnv(): Env {
   }
 
   const rawEnv = {
-    NEXT_PUBLIC_SUPABASE_PROJECT_URL:
-      process.env.NEXT_PUBLIC_SUPABASE_PROJECT_URL?.trim() ?? "",
+    NEXT_PUBLIC_SUPABASE_URL:
+      process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "",
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ?? "",
   };
 
   // Development: Check if variables are missing before validation
   if (process.env.NODE_ENV === "development") {
-    if (!rawEnv.NEXT_PUBLIC_SUPABASE_PROJECT_URL) {
+    if (!rawEnv.NEXT_PUBLIC_SUPABASE_URL) {
       logger.warn(
-        "⚠️  NEXT_PUBLIC_SUPABASE_PROJECT_URL is not set. " +
+        "⚠️  NEXT_PUBLIC_SUPABASE_URL is not set. " +
           "Please create a .env.local file with your Supabase project URL."
       );
     }
@@ -160,7 +159,7 @@ export function getValidatedEnv(): Env {
  */
 export function getSupabaseUrl(): string {
   const env = getValidatedEnv();
-  return env.NEXT_PUBLIC_SUPABASE_PROJECT_URL;
+  return env.NEXT_PUBLIC_SUPABASE_URL;
 }
 
 /**
