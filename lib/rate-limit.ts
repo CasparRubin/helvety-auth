@@ -10,10 +10,12 @@
  */
 
 /**
- *
+ * Internal record for tracking rate limit state per key
  */
 interface RateLimitRecord {
+  /** Number of requests made in the current window */
   count: number;
+  /** Unix timestamp when the rate limit window resets */
   resetTime: number;
 }
 
@@ -26,7 +28,9 @@ const CLEANUP_INTERVAL = 60 * 1000; // 1 minute
 let cleanupTimer: NodeJS.Timeout | null = null;
 
 /**
- *
+ * Starts the periodic cleanup timer to remove expired rate limit records.
+ * This prevents memory leaks from accumulating stale records.
+ * Only starts once - subsequent calls are no-ops.
  */
 function startCleanup(): void {
   if (cleanupTimer) return;
