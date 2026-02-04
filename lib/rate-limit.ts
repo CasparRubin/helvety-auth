@@ -5,8 +5,33 @@
  * Prevents brute force attacks by limiting the number of requests
  * from a single IP or identifier within a time window.
  *
- * Note: This is an in-memory implementation suitable for single-server deployments.
- * For multi-server deployments, consider using Redis or a similar distributed store.
+ * ============================================================================
+ * IMPORTANT: SINGLE-SERVER LIMITATION
+ * ============================================================================
+ *
+ * This implementation uses an in-memory Map that does NOT persist across:
+ * - Server restarts
+ * - Multiple server instances (horizontal scaling)
+ * - Serverless function invocations (each invocation is isolated)
+ *
+ * IMPLICATIONS:
+ * - In multi-server deployments, rate limits are per-server, allowing attackers
+ *   to multiply their effective request limit by the number of servers.
+ * - In serverless environments (Vercel, AWS Lambda), rate limiting may be
+ *   ineffective as each invocation starts with a fresh in-memory store.
+ *
+ * PRODUCTION RECOMMENDATION:
+ * For production deployments with multiple servers or serverless functions,
+ * migrate to a distributed rate limiting solution:
+ * - Redis with sliding window algorithm
+ * - Upstash Rate Limit (serverless-friendly)
+ * - Cloudflare Rate Limiting (edge-based)
+ *
+ * Current implementation is acceptable for:
+ * - Development environments
+ * - Single-server deployments
+ * - As a fallback layer behind edge-based rate limiting
+ * ============================================================================
  */
 
 /**

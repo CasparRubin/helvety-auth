@@ -169,12 +169,9 @@ function LoginContent() {
           return;
         }
 
-        if (result.data?.skipToPasskey) {
-          setStep("passkey-signin");
-          setSkippedToPasskey(true);
-        } else {
-          setStep("email-sent");
-        }
+        // Always show email-sent step (generic response to prevent email enumeration)
+        // Users with passkeys can click "Sign in with passkey" button instead
+        setStep("email-sent");
         setIsLoading(false);
       } catch (err) {
         logger.error("Email submission error:", err);

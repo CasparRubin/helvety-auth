@@ -11,6 +11,7 @@ import {
 import { cookies, headers } from "next/headers";
 
 import { logAuthEvent } from "@/lib/auth-logger";
+import { requireCSRFToken } from "@/lib/csrf";
 import { logger } from "@/lib/logger";
 import { checkRateLimit, RATE_LIMITS, resetRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -87,25 +88,23 @@ async function getClientIP(): Promise<string> {
 }
 
 /**
- * Send a magic link to the user's email, or skip to passkey sign-in for existing users with a passkey.
- * Magic link is sent only for new users or existing users without a passkey (so they can complete setup).
- * Existing users with a passkey skip the email and go straight to passkey sign-in.
+ * Send a magic link to the user's email for authentication.
+ * Creates a new account if the user doesn't exist.
  *
  * Security:
  * - Rate limited to prevent email spam attacks
  * - Email is normalized to prevent duplicates
  * - Logs all attempts for audit trail
+ * - Returns generic response to prevent email enumeration
  *
  * @param email - The user's email address
  * @param redirectUri - Optional redirect URI to preserve through auth flow
- * @returns Success status with isNewUser and skipToPasskey (true when existing user with passkey)
+ * @returns Success status (generic to prevent email enumeration)
  */
 export async function sendMagicLink(
   email: string,
   redirectUri?: string
-): Promise<
-  PasskeyActionResponse<{ isNewUser: boolean; skipToPasskey?: boolean }>
-> {
+): Promise<PasskeyActionResponse<{ emailSent: boolean }>> {
   const normalizedEmail = email.toLowerCase().trim();
   const clientIP = await getClientIP();
 
@@ -152,13 +151,17 @@ export async function sendMagicLink(
       return { success: false, error: "Please enter a valid email address" };
     }
 
-    // Check if user exists
+    // Check if user exists (for internal logging only, not exposed to client)
     const { data: existingUsers, error: listError } =
       await adminClient.auth.admin.listUsers();
 
     if (listError) {
       logger.error("Error listing users:", listError);
-      return { success: false, error: "Failed to check user status" };
+      // Return generic success to prevent enumeration
+      return {
+        success: true,
+        data: { emailSent: true },
+      };
     }
 
     const existingUser = existingUsers.users.find(
@@ -176,28 +179,29 @@ export async function sendMagicLink(
 
       if (createError) {
         logger.error("Error creating user:", createError);
-        return { success: false, error: "Failed to create account" };
+        // Return generic success to prevent enumeration
+        return {
+          success: true,
+          data: { emailSent: true },
+        };
       }
 
       isNewUser = true;
     }
 
-    // Existing user with passkey: skip magic link, go straight to passkey sign-in
+    // Log passkey status internally (not exposed to prevent enumeration)
     if (existingUser) {
       const passkeyStatus = await checkUserPasskeyStatus(existingUser.id);
       if (passkeyStatus.success && passkeyStatus.data?.hasPasskey) {
         logAuthEvent("login_started", {
-          metadata: { method: "passkey", skipMagicLink: true },
+          metadata: { method: "magic_link", hasPasskey: true },
           ip: clientIP,
         });
-        return {
-          success: true,
-          data: { isNewUser: false, skipToPasskey: true },
-        };
       }
     }
 
-    // Send magic link for new users or existing users without passkey
+    // Always send magic link (for all users, including those with passkeys)
+    // This prevents email enumeration by ensuring consistent behavior
     const origin =
       process.env.NEXT_PUBLIC_APP_URL ?? "https://auth.helvety.com";
     const callbackUrl = redirectUri
@@ -217,17 +221,23 @@ export async function sendMagicLink(
         metadata: { reason: signInError.message },
         ip: clientIP,
       });
-      return { success: false, error: "Failed to send verification email" };
+      // Return generic success to prevent enumeration
+      return {
+        success: true,
+        data: { emailSent: true },
+      };
     }
 
+    // Log internally only
     logAuthEvent("magic_link_sent", {
       metadata: { isNewUser },
       ip: clientIP,
     });
 
+    // Security: Always return same response shape regardless of user existence
     return {
       success: true,
-      data: { isNewUser, skipToPasskey: false },
+      data: { emailSent: true },
     };
   } catch (error) {
     logger.error("Error in sendMagicLink:", error);
@@ -235,7 +245,11 @@ export async function sendMagicLink(
       metadata: { reason: "unexpected_error" },
       ip: clientIP,
     });
-    return { success: false, error: "Failed to send verification email" };
+    // Return generic success to prevent enumeration
+    return {
+      success: true,
+      data: { emailSent: true },
+    };
   }
 }
 
@@ -501,17 +515,36 @@ export async function generatePasskeyRegistrationOptions(
  *
  * Also stores PRF params for encryption if PRF was enabled.
  *
+ * Security:
+ * - CSRF token validation required
+ * - Requires authenticated user
+ *
  * @param response - The registration response from the browser
  * @param origin - The origin URL
  * @param prfEnabled - Whether PRF was enabled during registration
+ * @param csrfToken - CSRF token for security validation
  * @returns Success status and credential info
  */
 export async function verifyPasskeyRegistration(
   response: RegistrationResponseJSON,
   origin: string,
-  prfEnabled: boolean = false
+  prfEnabled: boolean = false,
+  csrfToken?: string
 ): Promise<PasskeyActionResponse<{ credentialId: string; prfSalt?: string }>> {
   try {
+    // Validate CSRF token
+    try {
+      await requireCSRFToken(csrfToken);
+    } catch {
+      logAuthEvent("csrf_validation_failed", {
+        metadata: { action: "verifyPasskeyRegistration" },
+      });
+      return {
+        success: false,
+        error: "Security validation failed. Please refresh and try again.",
+      };
+    }
+
     const supabase = await createClient();
 
     // Get current user
@@ -954,12 +987,32 @@ export async function getUserCredentials(): Promise<
 
 /**
  * Delete a credential (for management UI)
- * Requires authentication
+ *
+ * Security:
+ * - CSRF token validation required
+ * - Requires authenticated user
+ *
+ * @param credentialId - The credential ID to delete
+ * @param csrfToken - CSRF token for security validation
  */
 export async function deleteCredential(
-  credentialId: string
+  credentialId: string,
+  csrfToken?: string
 ): Promise<PasskeyActionResponse> {
   try {
+    // Validate CSRF token
+    try {
+      await requireCSRFToken(csrfToken);
+    } catch {
+      logAuthEvent("csrf_validation_failed", {
+        metadata: { action: "deleteCredential" },
+      });
+      return {
+        success: false,
+        error: "Security validation failed. Please refresh and try again.",
+      };
+    }
+
     const supabase = await createClient();
 
     const {
@@ -1084,13 +1137,39 @@ export async function getPasskeyParams(): Promise<
 /**
  * Save user's passkey encryption params (PRF salt and credential ID)
  * Used during encryption setup flow
+ *
+ * Security:
+ * - CSRF token validation required
+ * - Requires authenticated user
+ *
+ * @param params - The passkey parameters object
+ * @param params.prf_salt - Base64-encoded PRF salt for HKDF
+ * @param params.credential_id - Base64url-encoded credential ID
+ * @param params.version - PRF version number
+ * @param csrfToken - CSRF token for security validation
  */
-export async function savePasskeyParams(params: {
-  prf_salt: string;
-  credential_id: string;
-  version: number;
-}): Promise<PasskeyActionResponse> {
+export async function savePasskeyParams(
+  params: {
+    prf_salt: string;
+    credential_id: string;
+    version: number;
+  },
+  csrfToken?: string
+): Promise<PasskeyActionResponse> {
   try {
+    // Validate CSRF token
+    try {
+      await requireCSRFToken(csrfToken);
+    } catch {
+      logAuthEvent("csrf_validation_failed", {
+        metadata: { action: "savePasskeyParams" },
+      });
+      return {
+        success: false,
+        error: "Security validation failed. Please refresh and try again.",
+      };
+    }
+
     const supabase = await createClient();
 
     const {
