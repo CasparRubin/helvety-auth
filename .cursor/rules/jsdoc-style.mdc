@@ -8,7 +8,7 @@ globs: ["**/*.ts", "**/*.tsx"]
 When writing JSDoc comments for this codebase:
 
 1. **Required for**: Functions, classes, interfaces, type aliases
-2. **Not required for**: Methods, constructors, test files
+2. **Not required for**: Methods, constructors
 3. **Content**: Description only - do NOT add @param or @returns tags
 4. **Rationale**: TypeScript provides type information; JSDoc is for human-readable descriptions
 

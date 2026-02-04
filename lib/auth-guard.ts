@@ -21,9 +21,6 @@ import type { User } from "@supabase/supabase-js";
  *   await requireAuth();
  *   return <>{children}</>;
  * }
- *
- * @returns The authenticated user
- * @throws Redirects to login if not authenticated
  */
 export async function requireAuth(): Promise<User> {
   const supabase = await createClient();
@@ -52,8 +49,6 @@ export async function requireAuth(): Promise<User> {
  * if (user) {
  *   // Show personalized content
  * }
- *
- * @returns The user if authenticated, null otherwise
  */
 export async function getOptionalUser(): Promise<User | null> {
   const supabase = await createClient();
@@ -68,8 +63,6 @@ export async function getOptionalUser(): Promise<User | null> {
  * Check if the current request is authenticated.
  *
  * Use this for conditional logic without getting the full user object.
- *
- * @returns true if authenticated, false otherwise
  */
 export async function isAuthenticated(): Promise<boolean> {
   const user = await getOptionalUser();

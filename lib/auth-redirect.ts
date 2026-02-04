@@ -16,10 +16,8 @@ function getAuthBaseUrl(): string {
 }
 
 /**
- * Get the login URL for redirecting to the auth service
- *
- * @param currentUrl - The current URL to redirect back to after login
- * @returns The login URL with redirect_uri parameter
+ * Get the login URL for redirecting to the auth service.
+ * Includes the current URL as redirect_uri parameter for post-login return.
  */
 export function getLoginUrl(currentUrl?: string): string {
   const authBase = getAuthBaseUrl();
@@ -31,39 +29,31 @@ export function getLoginUrl(currentUrl?: string): string {
   } else if (typeof window !== "undefined") {
     redirectUri = window.location.href;
   } else {
-    // Server-side fallback
-    redirectUri =
-      process.env.NODE_ENV === "development"
-        ? "http://localhost:3000"
-        : "https://helvety.com";
+    // Server-side: use app URL from environment
+    redirectUri = process.env.NEXT_PUBLIC_APP_URL ?? "https://helvety.com";
   }
 
   return `${authBase}/login?redirect_uri=${encodeURIComponent(redirectUri)}`;
 }
 
 /**
- * Get the logout URL for signing out via the auth service
- *
- * @param redirectUri - Optional URL to redirect to after logout
- * @returns The logout URL with optional redirect_uri parameter
+ * Get the logout URL for signing out via the auth service.
+ * Includes an optional redirect_uri parameter for post-logout navigation.
  */
 export function getLogoutUrl(redirectUri?: string): string {
   const authBase = getAuthBaseUrl();
 
+  // Use provided URI or app URL from environment
   const redirect =
-    redirectUri ??
-    (process.env.NODE_ENV === "development"
-      ? "http://localhost:3000"
-      : "https://helvety.com");
+    redirectUri ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://helvety.com";
 
   return `${authBase}/logout?redirect_uri=${encodeURIComponent(redirect)}`;
 }
 
 /**
- * Redirect to the login page
- * Call this from client components when user needs to authenticate
- *
- * @param currentUrl - Optional current URL (defaults to window.location.href)
+ * Redirect to the login page.
+ * Call this from client components when user needs to authenticate.
+ * Uses window.location.href to navigate to the auth service.
  */
 export function redirectToLogin(currentUrl?: string): void {
   if (typeof window !== "undefined") {
@@ -72,10 +62,9 @@ export function redirectToLogin(currentUrl?: string): void {
 }
 
 /**
- * Redirect to logout
- * Call this from client components to sign out
- *
- * @param redirectUri - Optional URL to redirect to after logout
+ * Redirect to logout.
+ * Call this from client components to sign out.
+ * Navigates to the auth service logout endpoint.
  */
 export function redirectToLogout(redirectUri?: string): void {
   if (typeof window !== "undefined") {

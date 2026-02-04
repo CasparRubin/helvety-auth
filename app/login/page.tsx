@@ -328,6 +328,29 @@ function LoginContent() {
     }
   }, [redirectUri, router]);
 
+  // Auto-trigger passkey authentication for existing users who skipped magic link
+  useEffect(() => {
+    if (
+      step === "passkey-signin" &&
+      skippedToPasskey &&
+      passkeySupported &&
+      !isLoading
+    ) {
+      // Small delay to allow UI to render first
+      const timer = setTimeout(() => {
+        void handlePasskeySignIn();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [
+    step,
+    skippedToPasskey,
+    passkeySupported,
+    isLoading,
+    handlePasskeySignIn,
+  ]);
+
   // Go back to email step
   const handleBack = () => {
     setStep("email");

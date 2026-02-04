@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 import { logAuthEvent } from "@/lib/auth-logger";
 import { clearAllKeys } from "@/lib/crypto";
+import { logger } from "@/lib/logger";
 import { SESSION_CONFIG } from "@/lib/session-config";
 import { createClient } from "@/lib/supabase/client";
 
@@ -98,7 +99,7 @@ export function useAuthSession(
     try {
       await clearAllKeys();
     } catch (error) {
-      console.error("Failed to clear encryption keys:", error);
+      logger.error("Failed to clear encryption keys:", error);
     }
 
     onSignOut?.();
@@ -134,7 +135,7 @@ export function useAuthSession(
           logAuthEvent("session_refresh", { userId: user.id });
         }
       } catch (error) {
-        console.error("Failed to get user:", error);
+        logger.error("Failed to get user:", error);
       } finally {
         setLoading(false);
       }
@@ -160,7 +161,7 @@ export function useAuthSession(
         try {
           await clearAllKeys();
         } catch (error) {
-          console.error("Failed to clear encryption keys:", error);
+          logger.error("Failed to clear encryption keys:", error);
         }
         onSignOut?.();
       }

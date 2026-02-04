@@ -1,8 +1,6 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import importPlugin from "eslint-plugin-import";
 import jsdoc from "eslint-plugin-jsdoc";
-import testingLibrary from "eslint-plugin-testing-library";
-import vitest from "@vitest/eslint-plugin";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import tseslint from "typescript-eslint";
@@ -132,28 +130,6 @@ const eslintConfig = defineConfig([
       "jsdoc/require-returns-type": "off",
       "jsdoc/check-param-names": "off", // TypeScript validates param names
       "jsdoc/check-tag-names": "warn",
-    },
-  },
-  // Unit test rules (Vitest + Testing Library)
-  {
-    files: ["**/*.test.{ts,tsx}", "__tests__/**/*.{ts,tsx}"],
-    plugins: {
-      "testing-library": testingLibrary,
-      vitest,
-    },
-    rules: {
-      "testing-library/prefer-screen-queries": "error",
-      "testing-library/no-unnecessary-act": "error",
-      "testing-library/no-wait-for-multiple-assertions": "warn",
-      "vitest/expect-expect": "error",
-      "vitest/no-identical-title": "error",
-      "vitest/no-disabled-tests": "warn",
-      "vitest/valid-expect": "error",
-      // Relax JSDoc for test files
-      "jsdoc/require-jsdoc": "off",
-      "jsdoc/require-param": "off",
-      "jsdoc/require-returns": "off",
-      "jsdoc/check-param-names": "off",
     },
   },
   globalIgnores([

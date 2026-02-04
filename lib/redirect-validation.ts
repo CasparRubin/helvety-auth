@@ -26,9 +26,6 @@ const ALLOWED_REDIRECT_PATTERNS = [
 
 /**
  * Validates a redirect URI against the allowlist
- *
- * @param uri - The redirect URI to validate
- * @returns true if the URI is allowed, false otherwise
  */
 export function isValidRedirectUri(uri: string | null | undefined): boolean {
   if (!uri) {
@@ -54,10 +51,6 @@ export function isValidRedirectUri(uri: string | null | undefined): boolean {
 
 /**
  * Validates and returns a safe redirect URI
- *
- * @param uri - The redirect URI to validate
- * @param defaultUri - Default URI to return if validation fails (optional)
- * @returns The validated URI or the default URI
  */
 export function getSafeRedirectUri(
   uri: string | null | undefined,
@@ -71,9 +64,6 @@ export function getSafeRedirectUri(
 
 /**
  * Validates that a path is a safe relative path (for internal redirects)
- *
- * @param path - The path to validate
- * @returns true if the path is a safe relative path
  */
 export function isValidRelativePath(path: string | null | undefined): boolean {
   if (!path) {
@@ -95,10 +85,6 @@ export function isValidRelativePath(path: string | null | undefined): boolean {
 
 /**
  * Gets a safe relative path, returning default if invalid
- *
- * @param path - The path to validate
- * @param defaultPath - Default path to return if validation fails
- * @returns The validated path or the default path
  */
 export function getSafeRelativePath(
   path: string | null | undefined,

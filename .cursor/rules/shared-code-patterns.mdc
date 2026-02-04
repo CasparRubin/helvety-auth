@@ -13,7 +13,7 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, and helvet
 
 - `lib/utils.ts` (cn, generateSecureId)
 - `lib/logger.ts`
-- `lib/constants.ts` (only `TOAST_DURATIONS` must be identical; app-specific constants are allowed)
+- `lib/constants.ts` – helvety.com, helvety-auth, helvety-store: identical (TOAST_DURATIONS). helvety-pdf: not synced; keeps its own file with TOAST_DURATIONS plus PDF-specific constants (BREAKPOINTS, FILE_LIMITS, etc.).
 
 ### Crypto Module (must be identical)
 
@@ -31,6 +31,8 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, and helvet
 - `lib/auth-errors.ts`
 - `lib/auth-logger.ts`
 - `lib/auth-redirect.ts`
+- `lib/auth-guard.ts` – helvety-auth: not synced (redirects to local `/login`). Other apps: synced (redirects to auth service via `getLoginUrl()`).
+- `lib/redirect-validation.ts`
 - `lib/rate-limit.ts`
 - `lib/csrf.ts`
 
@@ -45,11 +47,6 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, and helvet
 - `proxy.ts` (Next.js 16 proxy: session refresh and cookie domain)
 - `scripts/generate-version.js`
 
-### Test utilities (base should match)
-
-- `__tests__/utils/mock-factories.ts` – base factories (createMockUser, createMockSupabaseClient, etc.) should match; app-specific mocks (e.g. passkey in auth) are allowed in the same file.
-- `__tests__/utils/server-only-mock.ts` – should match across repos.
-
 ## App-Specific Code
 
 Put app-specific utilities in appropriately named files:
@@ -61,7 +58,7 @@ Put app-specific utilities in appropriately named files:
 ## When Adding New Shared Code
 
 1. Add to one repo first
-2. Test thoroughly
+2. Verify the changes work correctly
 3. Copy to all other repos
 4. Commit changes to all repos together (or sequentially)
 

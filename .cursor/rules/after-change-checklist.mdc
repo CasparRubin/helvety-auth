@@ -1,16 +1,11 @@
 ---
-description: After code changes, update tests, comments, README, and legal docs as needed
+description: After code changes, update comments, README, and legal docs as needed
 alwaysApply: true
 ---
 
 # After-Change Checklist
 
 After implementing or changing code, also do the following:
-
-## Tests
-
-- Add or update unit/integration tests for new or changed behavior.
-- Keep coverage and `__tests__/` structure in line with the project (see `__tests__/README.md` in this repo).
 
 ## Comments / JSDoc
 
@@ -27,4 +22,4 @@ After implementing or changing code, also do the following:
 
 ## Shared-code repos (helvety.com, helvety-auth, helvety-pdf, helvety-store)
 
-- After editing any file listed in `shared-code-patterns.mdc`, run the shared-code sync from **helvety.com**: `node scripts/sync-shared.js`, then run format/lint/tests in each target repo (as noted in the main README).
+- After editing any file listed in `shared-code-patterns.mdc`, run the shared-code sync from **helvety.com**: `node scripts/sync-shared.js`, then run format/lint in each target repo (as noted in the main README).

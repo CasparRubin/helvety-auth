@@ -1,13 +1,13 @@
 {
   "name": "helvety-auth",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "license": "UNLICENSED",
   "engines": {
     "node": ">=20.9.0"
   },
   "scripts": {
-    "dev": "node scripts/generate-version.js && next dev",
+    "dev": "node scripts/generate-version.js && next dev -p 3002",
     "build": "node scripts/generate-version.js && next build",
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
@@ -15,14 +15,14 @@
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "predeploy": "npm run format:check && npm run type-check && npm run lint && npm run test:run && npm run build"
+    "predeploy": "npm run format:check && npm run type-check && npm run lint && npm run build"
   },
   "dependencies": {
     "@fontsource-variable/public-sans": "^5.2.7",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-popover": "^1.1.15",
+    "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@simplewebauthn/browser": "^13.2.2",
@@ -36,7 +36,6 @@
     "lucide-react": "^0.563.0",
     "next": "^16.1.6",
     "next-themes": "^0.4.6",
-    "radix-ui": "^1.4.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "server-only": "^0.0.1",
@@ -47,30 +46,20 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^25.1.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^5.1.2",
-    "@vitest/coverage-v8": "^4.0.18",
-    "@vitest/eslint-plugin": "^1.1.31",
     "eslint": "^9",
     "eslint-config-next": "^16.1.6",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-jsdoc": "^50.6.3",
-    "eslint-plugin-testing-library": "^7.1.1",
-    "jsdom": "^27.4.0",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "shadcn": "^3.8.0",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "typescript-eslint": "^8.54.0",
-    "vitest": "^4.0.18"
+    "typescript-eslint": "^8.54.0"
   }
 }

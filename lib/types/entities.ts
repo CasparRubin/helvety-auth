@@ -59,6 +59,8 @@ export interface UserPasskeyParams {
 export interface UserProfile {
   id: string;
   stripe_customer_id: string | null;
+  /** Optional display name for personalization */
+  display_name?: string | null;
   email: string;
   created_at: string;
   updated_at: string;
