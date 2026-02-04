@@ -58,8 +58,12 @@ export interface UseAuthSessionOptions {
  * - Optional idle timeout for security
  * - Clears encryption keys on sign out
  *
- * Note: For the auth service, idle timeout is disabled by default
- * since users are actively completing authentication steps.
+ * AUTH SERVICE DIFFERENCES:
+ * This version differs from other Helvety apps (helvety.com, helvety-pdf, helvety-store):
+ * - enableIdleTimeout defaults to false - prevents redirect loops during auth setup
+ * - No redirectToLogout() call - auth service handles logout directly, not via redirect
+ *
+ * These differences are intentional and should NOT be synced from helvety.com.
  *
  * @example
  * function MyComponent() {

@@ -36,6 +36,19 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, and helvet
 - `lib/rate-limit.ts`
 - `lib/csrf.ts`
 
+### Types (must be identical)
+
+- `lib/types/entities.ts` – shared entity types (UserAuthCredential, UserPasskeyParams, UserProfile, ActionResponse)
+
+### Hooks (must be identical across repos that use them)
+
+- `hooks/use-auth-session.ts` – helvety-auth: not synced (no redirect, idle timeout disabled). Other apps: synced.
+
+### App Pages (must be identical)
+
+- `app/error.tsx` – global error boundary
+- `app/not-found.tsx` – global 404 page
+
 ### Components (must be identical)
 
 - `components/theme-provider.tsx`
@@ -46,6 +59,7 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, and helvet
 
 - `proxy.ts` (Next.js 16 proxy: session refresh and cookie domain)
 - `scripts/generate-version.js`
+- `.cursor/rules/*` – coding standards and patterns (all .mdc files)
 
 ## App-Specific Code
 
@@ -62,6 +76,6 @@ Put app-specific utilities in appropriately named files:
 3. Copy to all other repos
 4. Commit changes to all repos together (or sequentially)
 
-## Cursor rules
+## Sync Script
 
-Shared rule files in `.cursor/rules/` (`code-organization.mdc`, `jsdoc-style.mdc`, `shared-code-patterns.mdc`, `after-change-checklist.mdc`, `official-docs-first.mdc`) should be kept in sync across helvety.com, helvety-auth, helvety-pdf, and helvety-store so all four follow the same standards.
+Run `node scripts/sync-shared.js` from helvety.com to copy all shared files to the other repos. Use `--dry-run` to preview changes. The script validates source files, reports diffs, and provides a summary.

@@ -1,9 +1,11 @@
+import { cn } from "@/lib/utils";
+
 const LEGAL_BASE = "https://helvety.com";
 
 /** Sticky site footer: contact email + Impressum, Privacy, Terms (links to helvety.com). */
-export function Footer() {
+export function Footer({ className }: { className?: string }) {
   return (
-    <footer className="border-border shrink-0 border-t">
+    <footer className={cn("border-border shrink-0 border-t", className)}>
       <div className="mx-auto w-full max-w-[2000px] px-4 py-3">
         <div className="text-muted-foreground flex flex-col items-center gap-1.5 text-center text-xs">
           <a

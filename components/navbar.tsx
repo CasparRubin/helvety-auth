@@ -221,7 +221,7 @@ export function Navbar() {
             {!user && !isLoading && (
               <Button variant="default" size="sm" asChild>
                 <Link href="/login">
-                  <LogIn className="mr-2 h-4 w-4" />
+                  <LogIn className="h-4 w-4" />
                   Sign in
                 </Link>
               </Button>
@@ -338,9 +338,9 @@ export function Navbar() {
                 <SheetHeader>
                   <SheetTitle>Menu</SheetTitle>
                 </SheetHeader>
-                <nav className="mt-6 flex flex-col gap-2">
+                <nav className="mt-6 flex flex-col gap-2 px-4">
                   {!encryptionLoading && isUnlocked && (
-                    <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                    <div className="text-muted-foreground flex h-9 items-center gap-2 px-2.5 text-sm">
                       <ShieldCheck className="h-4 w-4 shrink-0 text-green-500" />
                       <span>End-to-end encrypted</span>
                     </div>
@@ -353,7 +353,7 @@ export function Navbar() {
                       setAboutOpen(true);
                     }}
                   >
-                    <Info className="mr-2 h-4 w-4" />
+                    <Info className="h-4 w-4" />
                     About
                   </Button>
                   <Button
@@ -367,8 +367,8 @@ export function Navbar() {
                       rel="noopener noreferrer"
                       onClick={() => setMobileMenuOpen(false)}
                     >
-                      <Github className="mr-2 h-4 w-4" />
-                      View source on GitHub
+                      <Github className="h-4 w-4" />
+                      View source code on GitHub
                     </a>
                   </Button>
                 </nav>

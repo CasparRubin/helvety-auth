@@ -8,7 +8,10 @@ import { Button } from "@/components/ui/button";
 import { logger } from "@/lib/logger";
 
 /**
+ * Global error boundary component for Next.js App Router
  *
+ * Displays a user-friendly error message with options to retry or return home.
+ * Logs errors to the application logger for debugging.
  */
 export default function GlobalError({
   error,
@@ -34,7 +37,13 @@ export default function GlobalError({
             Something went wrong
           </h1>
           <p className="text-muted-foreground max-w-md">
-            An unexpected error occurred. Please try again, or contact support
+            An unexpected error occurred. Please try again, or{" "}
+            <a
+              href="mailto:contact@helvety.com"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              contact support
+            </a>{" "}
             if the problem persists.
           </p>
           {error.digest && (
