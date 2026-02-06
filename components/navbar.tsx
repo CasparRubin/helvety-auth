@@ -5,11 +5,9 @@ import {
   LogOut,
   Menu,
   User,
-  Building2,
   Settings,
   Github,
   Info,
-  Package,
   CreditCard,
   ShieldCheck,
 } from "lucide-react";
@@ -257,20 +255,6 @@ export function Navbar() {
                       asChild
                     >
                       <a
-                        href="https://store.helvety.com/products"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Package className="h-4 w-4" />
-                        Products
-                      </a>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      asChild
-                    >
-                      <a
                         href="https://store.helvety.com/account"
                         target="_blank"
                         rel="noopener noreferrer"
@@ -291,20 +275,6 @@ export function Navbar() {
                       >
                         <CreditCard className="h-4 w-4" />
                         Subscriptions
-                      </a>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      asChild
-                    >
-                      <a
-                        href="https://store.helvety.com/tenants"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Building2 className="h-4 w-4" />
-                        Tenants
                       </a>
                     </Button>
                   </div>

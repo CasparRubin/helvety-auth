@@ -1,6 +1,13 @@
 "use client";
 
-import { Grip, Home, FileText, ShoppingBag, KeyRound } from "lucide-react";
+import {
+  Grip,
+  Home,
+  FileText,
+  ShoppingBag,
+  KeyRound,
+  CheckSquare,
+} from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -23,6 +30,7 @@ const apps = [
   { name: "Auth", href: "https://auth.helvety.com", icon: KeyRound },
   { name: "Store", href: "https://store.helvety.com", icon: ShoppingBag },
   { name: "PDF", href: "https://pdf.helvety.com", icon: FileText },
+  { name: "Tasks", href: "https://tasks.helvety.com", icon: CheckSquare },
 ];
 
 /** Props for the AppSwitcher component */
@@ -34,7 +42,7 @@ interface AppSwitcherProps {
 /**
  * App switcher component for navigating between Helvety ecosystem apps.
  * Displays a grid of available apps in a slide-out sheet.
- * Apps are listed in order: Home, Auth, Store, PDF.
+ * Apps are listed in order: Home, Auth, Store, PDF, Tasks.
  */
 export function AppSwitcher({ currentApp }: AppSwitcherProps) {
   const [open, setOpen] = useState(false);

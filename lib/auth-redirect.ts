@@ -3,7 +3,12 @@
  *
  * These functions handle redirects to/from the centralized auth service
  * at auth.helvety.com for login and logout flows.
+ *
+ * Security: All redirect URIs are validated against an allowlist to prevent
+ * open redirect attacks.
  */
+
+import { isValidRedirectUri } from "@/lib/redirect-validation";
 
 /**
  * Get the base URL for the auth service
@@ -18,19 +23,27 @@ function getAuthBaseUrl(): string {
 /**
  * Get the login URL for redirecting to the auth service.
  * Includes the current URL as redirect_uri parameter for post-login return.
+ *
+ * Security: The redirect URI is validated against an allowlist to prevent
+ * open redirect attacks. Invalid URIs fall back to the default app URL.
  */
 export function getLoginUrl(currentUrl?: string): string {
   const authBase = getAuthBaseUrl();
+  const defaultUri = process.env.NEXT_PUBLIC_APP_URL ?? "https://helvety.com";
 
-  // Use provided URL or construct from window.location
+  // Determine the redirect URI with validation
   let redirectUri: string;
-  if (currentUrl) {
+
+  if (currentUrl && isValidRedirectUri(currentUrl)) {
+    // Use provided URL if it passes validation
     redirectUri = currentUrl;
   } else if (typeof window !== "undefined") {
-    redirectUri = window.location.href;
+    // Client-side: use current location (always valid as it's from the browser)
+    const windowUrl = window.location.href;
+    redirectUri = isValidRedirectUri(windowUrl) ? windowUrl : defaultUri;
   } else {
     // Server-side: use app URL from environment
-    redirectUri = process.env.NEXT_PUBLIC_APP_URL ?? "https://helvety.com";
+    redirectUri = defaultUri;
   }
 
   return `${authBase}/login?redirect_uri=${encodeURIComponent(redirectUri)}`;
@@ -39,13 +52,17 @@ export function getLoginUrl(currentUrl?: string): string {
 /**
  * Get the logout URL for signing out via the auth service.
  * Includes an optional redirect_uri parameter for post-logout navigation.
+ *
+ * Security: The redirect URI is validated against an allowlist to prevent
+ * open redirect attacks. Invalid URIs fall back to the default app URL.
  */
 export function getLogoutUrl(redirectUri?: string): string {
   const authBase = getAuthBaseUrl();
+  const defaultUri = process.env.NEXT_PUBLIC_APP_URL ?? "https://helvety.com";
 
-  // Use provided URI or app URL from environment
+  // Validate the provided URI; fall back to default if invalid
   const redirect =
-    redirectUri ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://helvety.com";
+    redirectUri && isValidRedirectUri(redirectUri) ? redirectUri : defaultUri;
 
   return `${authBase}/logout?redirect_uri=${encodeURIComponent(redirect)}`;
 }

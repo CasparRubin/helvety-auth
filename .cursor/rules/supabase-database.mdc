@@ -25,3 +25,39 @@ The database schema and export files are in `/supabase/` (gitignored, not in fil
 ## Important
 
 Since this folder is gitignored, use `Get-ChildItem` or explicit path reads to access these files.
+
+## Creating New Tables
+
+When adding tables for user-owned data, follow these patterns:
+
+### Table Structure
+```sql
+CREATE TABLE tablename (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  -- encrypted columns use TEXT type
+  encrypted_field TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX idx_tablename_user_id ON tablename(user_id);
+```
+
+### RLS Policies
+```sql
+ALTER TABLE tablename ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own tablename" ON tablename
+  FOR SELECT USING (user_id = ( SELECT auth.uid() AS uid));
+CREATE POLICY "Users can insert own tablename" ON tablename
+  FOR INSERT WITH CHECK (user_id = ( SELECT auth.uid() AS uid));
+CREATE POLICY "Users can update own tablename" ON tablename
+  FOR UPDATE USING (user_id = ( SELECT auth.uid() AS uid));
+CREATE POLICY "Users can delete own tablename" ON tablename
+  FOR DELETE USING (user_id = ( SELECT auth.uid() AS uid));
+```
+
+### Workflow
+1. Create tables and policies in Supabase Dashboard
+2. Update `database.sql` with the new table definitions
+3. Regenerate `supabase.json` by running `getSupabase.sql`

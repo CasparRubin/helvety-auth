@@ -12,7 +12,10 @@ import {
 } from "@/components/ui/tooltip";
 
 /**
+ * Theme toggle button for switching between light and dark modes
  *
+ * Handles system preference by resolving to the actual displayed theme
+ * when toggling. Shows sun icon in dark mode, moon icon in light mode.
  */
 export function ThemeSwitcher(): React.JSX.Element {
   const { setTheme, theme, resolvedTheme } = useTheme();

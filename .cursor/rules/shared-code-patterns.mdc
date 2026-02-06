@@ -7,7 +7,7 @@ globs: ["lib/**/*.ts", "lib/**/*.tsx", "components/**/*.tsx"]
 
 ## Files That Must Stay Synchronized
 
-These files are shared across helvety.com, helvety-auth, helvety-pdf, and helvety-store. When modifying these files, the same changes should be applied to all repos.
+These files are shared across helvety.com, helvety-auth, helvety-pdf, helvety-store, and helvety-tasks. When modifying these files, the same changes should be applied to all repos.
 
 ### Core Utilities (must be identical)
 
@@ -15,7 +15,9 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, and helvet
 - `lib/logger.ts`
 - `lib/constants.ts` – helvety.com, helvety-auth, helvety-store: identical (TOAST_DURATIONS). helvety-pdf: not synced; keeps its own file with TOAST_DURATIONS plus PDF-specific constants (BREAKPOINTS, FILE_LIMITS, etc.).
 
-### Crypto Module (must be identical)
+### Crypto Module (must be identical; actively used only by helvety-tasks and helvety-auth)
+
+> **Note:** The crypto module is synced to all repos for compilation, but only helvety-tasks and helvety-auth integrate it into the UI (EncryptionProvider, EncryptionGate, encryption server actions). helvety.com, helvety-pdf, and helvety-store do **not** use E2EE.
 
 - `lib/crypto/encoding.ts`
 - `lib/crypto/encryption.ts`
@@ -57,7 +59,7 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, and helvet
 
 ### Infrastructure (must be identical)
 
-- `proxy.ts` (Next.js 16 proxy: session refresh and cookie domain)
+- `proxy.ts` (Next.js 16 proxy: session refresh and cookie domain) – helvety-store: includes CSRF token generation. Other apps may or may not include it depending on whether they have API routes.
 - `scripts/generate-version.js`
 - `.cursor/rules/*` – coding standards and patterns (all .mdc files)
 
@@ -68,6 +70,19 @@ Put app-specific utilities in appropriately named files:
 - **helvety-pdf**: `lib/pdf-*.ts`, `lib/file-*.ts`, `lib/memory-*.ts`
 - **helvety-store**: `lib/stripe/*.ts`, `lib/license/*.ts`, `lib/packages/*.ts`
 - **helvety-auth**: `lib/auth-utils.ts` (auth-specific, not shared)
+- **helvety-tasks**: `app/actions/stage-actions.ts`, `app/actions/task-actions.ts` (task CRUD, not shared)
+
+## Future: Shared Package (@helvety/shared)
+
+When the number of shared files grows further or diverges become costly, extract shared code into an internal npm package `@helvety/shared`. This would include:
+- All crypto utilities
+- Auth guard, auth redirect, auth errors, auth logger
+- CSRF, rate limiting, redirect validation
+- Supabase client factories
+- Logger, utils, constants
+- Sentry configuration
+
+This eliminates manual sync and ensures security fixes propagate instantly across all repos.
 
 ## When Adding New Shared Code
 

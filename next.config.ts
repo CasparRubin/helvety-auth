@@ -37,9 +37,8 @@ const nextConfig: NextConfig = {
       {
         key: "Content-Security-Policy",
         // Note on 'unsafe-eval' and 'unsafe-inline':
-        // - 'unsafe-eval': May be required by some third-party libraries and
-        //   Next.js development mode. Could potentially be removed in production
-        //   but requires thorough testing.
+        // - 'unsafe-eval': Only included in development for Next.js Fast Refresh.
+        //   Removed in production to prevent eval-based XSS attacks.
         // - 'unsafe-inline': Required for Next.js styled-jsx and some React patterns.
         // XSS is mitigated through:
         // - Strict React JSX escaping (no dangerouslySetInnerHTML)
@@ -47,7 +46,7 @@ const nextConfig: NextConfig = {
         // - HTTPOnly cookies for authentication
         value: [
           "default-src 'self'",
-          "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+          `script-src 'self'${isDevelopment ? " 'unsafe-eval'" : ""} 'unsafe-inline'`,
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: https: blob:",
           "font-src 'self' data:",

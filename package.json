@@ -1,6 +1,6 @@
 {
   "name": "helvety-auth",
-  "version": "0.3.1",
+  "version": "1.0.0",
   "private": true,
   "license": "UNLICENSED",
   "engines": {
@@ -29,6 +29,8 @@
     "@simplewebauthn/server": "^13.2.2",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.93.3",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.36.2",
     "@vercel/analytics": "^1.6.1",
     "@vercel/speed-insights": "^1.3.1",
     "class-variance-authority": "^0.7.1",

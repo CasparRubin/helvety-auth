@@ -109,12 +109,12 @@ export async function sendMagicLink(
   const clientIP = await getClientIP();
 
   // Rate limit by email AND IP to prevent abuse
-  const emailRateLimit = checkRateLimit(
+  const emailRateLimit = await checkRateLimit(
     `magic_link:email:${normalizedEmail}`,
     RATE_LIMITS.MAGIC_LINK.maxRequests,
     RATE_LIMITS.MAGIC_LINK.windowMs
   );
-  const ipRateLimit = checkRateLimit(
+  const ipRateLimit = await checkRateLimit(
     `magic_link:ip:${clientIP}`,
     RATE_LIMITS.MAGIC_LINK.maxRequests * 3, // Allow more per IP (multiple users)
     RATE_LIMITS.MAGIC_LINK.windowMs
@@ -685,7 +685,7 @@ export async function generatePasskeyAuthOptions(
   const clientIP = await getClientIP();
 
   // Rate limit by IP
-  const rateLimit = checkRateLimit(
+  const rateLimit = await checkRateLimit(
     `passkey_auth:ip:${clientIP}`,
     RATE_LIMITS.PASSKEY.maxRequests,
     RATE_LIMITS.PASSKEY.windowMs
@@ -919,7 +919,7 @@ export async function verifyPasskeyAuthentication(
     await clearChallenge();
 
     // Reset rate limit on successful auth
-    resetRateLimit(`passkey_auth:ip:${clientIP}`);
+    await resetRateLimit(`passkey_auth:ip:${clientIP}`);
 
     logAuthEvent("passkey_auth_success", {
       userId: credential.user_id,

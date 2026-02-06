@@ -14,6 +14,7 @@ Helvety Auth (`auth.helvety.com`) handles all authentication for Helvety applica
 - **helvety.com** - Main website
 - **store.helvety.com** - Store application
 - **pdf.helvety.com** - PDF application
+- **tasks.helvety.com** - Tasks application
 
 ## Features
 
@@ -29,12 +30,6 @@ Helvety Auth (`auth.helvety.com`) handles all authentication for Helvety applica
 - **Authentication**: Supabase Auth + SimpleWebAuthn
 - **Styling**: Tailwind CSS 4 + shadcn/ui
 - **Deployment**: Vercel
-
-**Environment:** Copy `env.template` to `.env.local` and set `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and (for server-side) `SUPABASE_SECRET_KEY`. Node.js 20.9+ required.
-
-**Pre-deployment:** Run `npm run predeploy` to run format check, type check, lint, and production build.
-
-**Development standards:** See `.cursor/rules/` for code organization, JSDoc, shared code patterns, after-change checklist (comments, README, legal), and official-docs-first. When editing shared code, run sync from helvety.com (see that repo's README).
 
 ## Authentication Flows
 

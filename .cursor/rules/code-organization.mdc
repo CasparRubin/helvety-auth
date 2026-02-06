@@ -30,7 +30,7 @@ lib/              # Shared utilities (NO React components here)
 ## Naming Conventions
 
 - **Files**: kebab-case (`auth-errors.ts`, not `authErrors.ts`)
-- **Components**: PascalCase file and export (`ThemeSwitcher.tsx` exports `ThemeSwitcher`)
+- **Components**: kebab-case file, PascalCase export (`theme-switcher.tsx` exports `ThemeSwitcher`)
 - **Hooks**: camelCase with `use` prefix (`use-auth-session.ts` exports `useAuthSession`)
 - **Functions**: camelCase (`generateSecureId`)
 - **Types/Interfaces**: PascalCase (`AuthError`, `EncryptedData`)

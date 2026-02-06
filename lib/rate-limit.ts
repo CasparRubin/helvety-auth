@@ -1,77 +1,25 @@
 /**
  * Rate Limiting Module
  *
- * Provides in-memory rate limiting for authentication endpoints.
- * Prevents brute force attacks by limiting the number of requests
- * from a single IP or identifier within a time window.
+ * Provides distributed rate limiting using Upstash Redis for production
+ * environments. Falls back to in-memory rate limiting when Upstash
+ * credentials are not configured (development).
  *
- * ============================================================================
- * IMPORTANT: SINGLE-SERVER LIMITATION
- * ============================================================================
+ * Production: Uses @upstash/ratelimit with sliding window algorithm.
+ *   - Works across serverless invocations and multiple instances
+ *   - Shared state via Upstash Redis
  *
- * This implementation uses an in-memory Map that does NOT persist across:
- * - Server restarts
- * - Multiple server instances (horizontal scaling)
- * - Serverless function invocations (each invocation is isolated)
- *
- * IMPLICATIONS:
- * - In multi-server deployments, rate limits are per-server, allowing attackers
- *   to multiply their effective request limit by the number of servers.
- * - In serverless environments (Vercel, AWS Lambda), rate limiting may be
- *   ineffective as each invocation starts with a fresh in-memory store.
- *
- * PRODUCTION RECOMMENDATION:
- * For production deployments with multiple servers or serverless functions,
- * migrate to a distributed rate limiting solution:
- * - Redis with sliding window algorithm
- * - Upstash Rate Limit (serverless-friendly)
- * - Cloudflare Rate Limiting (edge-based)
- *
- * Current implementation is acceptable for:
- * - Development environments
- * - Single-server deployments
- * - As a fallback layer behind edge-based rate limiting
- * ============================================================================
+ * Development: Uses in-memory Map (single-server only).
+ *   - Acceptable for local development
+ *   - Does not persist across server restarts
  */
 
-/**
- * Internal record for tracking rate limit state per key
- */
-interface RateLimitRecord {
-  /** Number of requests made in the current window */
-  count: number;
-  /** Unix timestamp when the rate limit window resets */
-  resetTime: number;
-}
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
-// In-memory store for rate limit records
-// Key is the identifier (e.g., IP address, user ID)
-const rateLimitStore = new Map<string, RateLimitRecord>();
-
-// Clean up expired records periodically to prevent memory leaks
-const CLEANUP_INTERVAL = 60 * 1000; // 1 minute
-let cleanupTimer: NodeJS.Timeout | null = null;
-
-/**
- * Starts the periodic cleanup timer to remove expired rate limit records.
- * This prevents memory leaks from accumulating stale records.
- * Only starts once - subsequent calls are no-ops.
- */
-function startCleanup(): void {
-  if (cleanupTimer) return;
-
-  cleanupTimer = setInterval(() => {
-    const now = Date.now();
-    for (const [key, record] of rateLimitStore.entries()) {
-      if (now > record.resetTime) {
-        rateLimitStore.delete(key);
-      }
-    }
-  }, CLEANUP_INTERVAL);
-
-  // Don't block process exit
-  cleanupTimer.unref();
-}
+// =============================================================================
+// Types
+// =============================================================================
 
 /**
  * Rate limit check result
@@ -85,107 +33,184 @@ export interface RateLimitResult {
   retryAfter?: number;
 }
 
+// =============================================================================
+// Upstash Redis Client (singleton)
+// =============================================================================
+
+let redis: Redis | null = null;
+
+/**
+ * Get or create the Upstash Redis client.
+ * Returns null if credentials are not configured.
+ */
+function getRedis(): Redis | null {
+  if (redis) return redis;
+
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!url || !token) {
+    return null;
+  }
+
+  redis = new Redis({ url, token });
+  return redis;
+}
+
+// =============================================================================
+// Rate Limiter Instances (cached per configuration)
+// =============================================================================
+
+const rateLimiters = new Map<string, Ratelimit>();
+
+/**
+ * Get or create an Upstash rate limiter for the given configuration.
+ */
+function getUpstashLimiter(
+  prefix: string,
+  maxRequests: number,
+  windowMs: number
+): Ratelimit | null {
+  const redisClient = getRedis();
+  if (!redisClient) return null;
+
+  const key = `${prefix}:${maxRequests}:${windowMs}`;
+  let limiter = rateLimiters.get(key);
+
+  if (!limiter) {
+    const windowSec = Math.ceil(windowMs / 1000);
+    const duration: `${number} m` | `${number} s` =
+      windowSec >= 60 ? `${Math.ceil(windowSec / 60)} m` : `${windowSec} s`;
+
+    limiter = new Ratelimit({
+      redis: redisClient,
+      limiter: Ratelimit.slidingWindow(maxRequests, duration),
+      prefix: `ratelimit:${prefix}`,
+      analytics: false,
+    });
+
+    rateLimiters.set(key, limiter);
+  }
+
+  return limiter;
+}
+
+// =============================================================================
+// In-Memory Fallback (development only)
+// =============================================================================
+
+/** In-memory rate limit tracking record (development fallback) */
+interface RateLimitRecord {
+  count: number;
+  resetTime: number;
+}
+
+const inMemoryStore = new Map<string, RateLimitRecord>();
+
+const CLEANUP_INTERVAL = 60 * 1000;
+let cleanupTimer: NodeJS.Timeout | null = null;
+
+/** Start periodic cleanup of expired in-memory records. */
+function startCleanup(): void {
+  if (cleanupTimer) return;
+
+  cleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, record] of inMemoryStore.entries()) {
+      if (now > record.resetTime) {
+        inMemoryStore.delete(key);
+      }
+    }
+  }, CLEANUP_INTERVAL);
+
+  cleanupTimer.unref();
+}
+
+/** In-memory rate limit check (fallback for development). */
+function checkInMemoryRateLimit(
+  key: string,
+  maxRequests: number,
+  windowMs: number
+): RateLimitResult {
+  startCleanup();
+
+  const now = Date.now();
+  const record = inMemoryStore.get(key);
+
+  if (!record || now > record.resetTime) {
+    inMemoryStore.set(key, { count: 1, resetTime: now + windowMs });
+    return { allowed: true, remaining: maxRequests - 1 };
+  }
+
+  if (record.count >= maxRequests) {
+    const retryAfter = Math.ceil((record.resetTime - now) / 1000);
+    return { allowed: false, remaining: 0, retryAfter };
+  }
+
+  record.count++;
+  return { allowed: true, remaining: maxRequests - record.count };
+}
+
+// =============================================================================
+// Public API
+// =============================================================================
+
 /**
  * Check if a request is allowed under the rate limit.
+ *
+ * Uses Upstash Redis in production (distributed), falls back to in-memory
+ * in development when UPSTASH_REDIS_REST_URL is not configured.
  *
  * @param key - Unique identifier for the rate limit (e.g., IP + endpoint)
  * @param maxRequests - Maximum number of requests allowed in the window
  * @param windowMs - Time window in milliseconds (default: 60 seconds)
  * @returns Rate limit result with allowed status and remaining requests
- *
- * @example
- * // In a Server Action
- * const ip = headers().get("x-forwarded-for") ?? "unknown";
- * const result = checkRateLimit(`login:${ip}`, 5, 60000);
- * if (!result.allowed) {
- *   return { error: `Rate limited. Try again in ${result.retryAfter} seconds.` };
- * }
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   key: string,
   maxRequests: number = 5,
   windowMs: number = 60000
-): RateLimitResult {
-  // Start cleanup timer on first use
-  startCleanup();
+): Promise<RateLimitResult> {
+  const limiter = getUpstashLimiter("api", maxRequests, windowMs);
 
-  const now = Date.now();
-  const record = rateLimitStore.get(key);
+  if (limiter) {
+    try {
+      const result = await limiter.limit(key);
 
-  // No existing record or expired record - allow and create new
-  if (!record || now > record.resetTime) {
-    rateLimitStore.set(key, {
-      count: 1,
-      resetTime: now + windowMs,
-    });
-    return {
-      allowed: true,
-      remaining: maxRequests - 1,
-    };
+      if (!result.success) {
+        const retryAfter = Math.ceil((result.reset - Date.now()) / 1000);
+        return {
+          allowed: false,
+          remaining: result.remaining,
+          retryAfter: Math.max(retryAfter, 1),
+        };
+      }
+
+      return { allowed: true, remaining: result.remaining };
+    } catch {
+      // If Upstash fails, fall through to in-memory
+    }
   }
 
-  // Check if limit exceeded
-  if (record.count >= maxRequests) {
-    const retryAfter = Math.ceil((record.resetTime - now) / 1000);
-    return {
-      allowed: false,
-      remaining: 0,
-      retryAfter,
-    };
-  }
-
-  // Increment count and allow
-  record.count++;
-  return {
-    allowed: true,
-    remaining: maxRequests - record.count,
-  };
+  return checkInMemoryRateLimit(key, maxRequests, windowMs);
 }
 
 /**
  * Reset the rate limit for a specific key.
  *
- * Use this after successful authentication to clear failed attempt counts.
- *
  * @param key - The rate limit key to reset
  */
-export function resetRateLimit(key: string): void {
-  rateLimitStore.delete(key);
-}
-
-/**
- * Get the current rate limit status without incrementing the counter.
- *
- * @param key - The rate limit key to check
- * @param maxRequests - Maximum requests for calculating remaining
- * @returns Current rate limit status
- */
-export function getRateLimitStatus(
-  key: string,
-  maxRequests: number = 5
-): RateLimitResult {
-  const now = Date.now();
-  const record = rateLimitStore.get(key);
-
-  if (!record || now > record.resetTime) {
-    return {
-      allowed: true,
-      remaining: maxRequests,
-    };
+export async function resetRateLimit(key: string): Promise<void> {
+  const redisClient = getRedis();
+  if (redisClient) {
+    try {
+      await redisClient.del(`ratelimit:api:${key}`);
+    } catch {
+      // Ignore errors on reset
+    }
   }
 
-  if (record.count >= maxRequests) {
-    return {
-      allowed: false,
-      remaining: 0,
-      retryAfter: Math.ceil((record.resetTime - now) / 1000),
-    };
-  }
-
-  return {
-    allowed: true,
-    remaining: maxRequests - record.count,
-  };
+  inMemoryStore.delete(key);
 }
 
 /**
@@ -202,4 +227,8 @@ export const RATE_LIMITS = {
   ENCRYPTION_UNLOCK: { maxRequests: 5, windowMs: 60 * 1000 },
   /** API calls: 100 per minute per user */
   API: { maxRequests: 100, windowMs: 60 * 1000 },
+  /** Download requests: 30 per minute per user */
+  DOWNLOADS: { maxRequests: 30, windowMs: 60 * 1000 },
+  /** Tenant management: 20 per minute per user */
+  TENANTS: { maxRequests: 20, windowMs: 60 * 1000 },
 } as const;

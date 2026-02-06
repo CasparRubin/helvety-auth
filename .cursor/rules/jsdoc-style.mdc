@@ -9,10 +9,12 @@ When writing JSDoc comments for this codebase:
 
 1. **Required for**: Functions, classes, interfaces, type aliases
 2. **Not required for**: Methods, constructors
-3. **Content**: Description only - do NOT add @param or @returns tags
+3. **Preferred content**: Description only
 4. **Rationale**: TypeScript provides type information; JSDoc is for human-readable descriptions
 
-## Good Example
+## Preferred Style (Simple Functions)
+
+For simple functions with 1-2 parameters and obvious behavior, use description only:
 
 ```typescript
 /**
@@ -22,24 +24,38 @@ When writing JSDoc comments for this codebase:
 export async function encrypt(data: string, key: CryptoKey): Promise<EncryptedData>
 ```
 
-## Bad Example
+## When @param/@returns Are Allowed
+
+Use @param and @returns tags for:
+
+- **Complex functions** (3+ parameters or non-obvious behavior)
+- **Server actions** (app/actions/*.ts) - for clarity on form data handling
+- **Security-sensitive functions** - where parameter constraints matter
+- **Functions with object parameters** - to document expected properties
 
 ```typescript
 /**
- * Encrypts data.
- * @param data - The data to encrypt
- * @param key - The encryption key
- * @returns The encrypted data
+ * Registers a new passkey credential for the user.
+ *
+ * @param userId - The authenticated user's ID
+ * @param credential - WebAuthn credential from browser
+ * @param challenge - The original registration challenge
+ * @returns The stored credential record or error
  */
+export async function registerPasskey(
+  userId: string,
+  credential: RegistrationCredential,
+  challenge: string
+): Promise<ActionResponse<UserAuthCredential>>
 ```
 
-## When to Include More Detail
+## Avoid
 
-- Complex algorithms that need explanation
-- Non-obvious side effects
-- Security-sensitive functions
-- Functions with many parameters where context helps
+- Empty JSDoc blocks: `/** */`
+- Redundant descriptions that just repeat the function name
+- @param tags that add no value beyond the type: `@param data - The data`
 
-## Exception
+## Keep Descriptions Meaningful
 
-For very complex functions with 4+ parameters where the purpose of each isn't obvious from names/types, you may include @param tags. But prefer making parameter names self-documenting first.
+Good: "Validates redirect URLs against allowed origins to prevent open redirect attacks"
+Bad: "Validates the redirect URL"
