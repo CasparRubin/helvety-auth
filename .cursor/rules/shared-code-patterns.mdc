@@ -13,7 +13,7 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, helvety-st
 
 - `lib/utils.ts` (cn, generateSecureId)
 - `lib/logger.ts`
-- `lib/constants.ts` – helvety.com, helvety-auth, helvety-store: identical (TOAST_DURATIONS). helvety-pdf: not synced; keeps its own file with TOAST_DURATIONS plus PDF-specific constants (BREAKPOINTS, FILE_LIMITS, etc.).
+- `lib/constants.ts` – helvety.com, helvety-auth, helvety-store, helvety-tasks: identical (TOAST_DURATIONS). helvety-pdf: not synced; keeps its own file with TOAST_DURATIONS plus PDF-specific constants (BREAKPOINTS, FILE_LIMITS, etc.).
 
 ### Crypto Module (must be identical; actively used only by helvety-tasks and helvety-auth)
 
@@ -22,11 +22,12 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, helvety-st
 - `lib/crypto/encoding.ts`
 - `lib/crypto/encryption.ts`
 - `lib/crypto/encryption-context.tsx`
-- `lib/crypto/index.ts`
+- `lib/crypto/index.ts` – helvety-tasks: not synced; keeps its own file that re-exports task-encryption.ts functions
 - `lib/crypto/key-storage.ts`
 - `lib/crypto/passkey.ts`
 - `lib/crypto/prf-key-derivation.ts`
 - `lib/crypto/types.ts`
+- `lib/crypto/task-encryption.ts` – helvety-tasks only; app-specific encryption helpers for Units, Spaces, Items, etc.
 
 ### Auth Utilities (must be identical across repos that use them)
 

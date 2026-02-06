@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node scripts/generate-version.js && next dev -p 3002",
     "build": "node scripts/generate-version.js && next build",
-    "start": "next start",
+    "start": "next start -p 3002",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "type-check": "tsc --noEmit",

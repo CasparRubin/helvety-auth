@@ -1,5 +1,12 @@
 import type { NextConfig } from "next";
 
+/**
+ * Next.js configuration for helvety-auth (authentication service)
+ *
+ * CSP Note: This app uses the baseline secure CSP configuration.
+ * - 'unsafe-eval' is only allowed in development (for Fast Refresh)
+ * - No blob: or worker-src needed (no web workers or PDF rendering)
+ */
 const nextConfig: NextConfig = {
   // Enable compression
   compress: true,

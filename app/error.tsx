@@ -37,12 +37,12 @@ export default function GlobalError({
             Something went wrong
           </h1>
           <p className="text-muted-foreground max-w-md">
-            An unexpected error occurred. Please try again, or{" "}
+            An unexpected error occurred. Please try again, or contact us at{" "}
             <a
               href="mailto:contact@helvety.com"
               className="text-primary underline-offset-4 hover:underline"
             >
-              contact support
+              contact@helvety.com
             </a>{" "}
             if the problem persists.
           </p>
