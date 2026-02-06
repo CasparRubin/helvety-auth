@@ -1,7 +1,7 @@
-import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 import localFont from "next/font/local";
 import { Suspense } from "react";
+
 import "./globals.css";
 
 import { AuthTokenHandler } from "@/components/auth-token-handler";
@@ -120,7 +120,6 @@ export default function RootLayout({
           </EncryptionProvider>
         </ThemeProvider>
         <Analytics />
-        <SpeedInsights />
       </body>
     </html>
   );
