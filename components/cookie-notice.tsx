@@ -1,8 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 const STORAGE_KEY = "helvety-cookie-notice-dismissed";
+
+/** Module-level cache of the dismissed state, lazily initialized from localStorage. */
+let dismissedCache: boolean | null = null;
+const listeners = new Set<() => void>();
+
+/** Read dismissed state, initializing from localStorage on first call. */
+function getClientSnapshot(): boolean {
+  if (dismissedCache === null) {
+    try {
+      dismissedCache = localStorage.getItem(STORAGE_KEY) !== null;
+    } catch {
+      dismissedCache = true;
+    }
+  }
+  return dismissedCache;
+}
+
+/** Server snapshot: always treat as dismissed so the notice is not rendered during SSR. */
+function getServerSnapshot(): boolean {
+  return true;
+}
+
+/** Subscribe to changes in the dismissed state. */
+function subscribe(callback: () => void): () => void {
+  listeners.add(callback);
+  return () => {
+    listeners.delete(callback);
+  };
+}
 
 /**
  * Minimal informational cookie notice bar.
@@ -13,30 +42,28 @@ const STORAGE_KEY = "helvety-cookie-notice-dismissed";
  *
  * Dismissal state is stored in localStorage (not a cookie) so the notice does not
  * reappear after the user acknowledges it.
+ *
+ * Uses useSyncExternalStore to read localStorage without triggering cascading renders.
  */
 export function CookieNotice() {
-  const [visible, setVisible] = useState(false);
+  const isDismissed = useSyncExternalStore(
+    subscribe,
+    getClientSnapshot,
+    getServerSnapshot
+  );
 
-  useEffect(() => {
-    try {
-      if (!localStorage.getItem(STORAGE_KEY)) {
-        setVisible(true);
-      }
-    } catch {
-      // localStorage unavailable (e.g. private browsing) — don't show
-    }
-  }, []);
-
+  /** Dismiss the notice and persist the choice to localStorage. */
   function dismiss() {
-    setVisible(false);
+    dismissedCache = true;
     try {
       localStorage.setItem(STORAGE_KEY, "1");
     } catch {
       // Ignore storage errors
     }
+    listeners.forEach((cb) => cb());
   }
 
-  if (!visible) return null;
+  if (isDismissed) return null;
 
   return (
     <div

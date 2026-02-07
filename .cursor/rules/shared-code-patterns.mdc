@@ -39,6 +39,18 @@ These files are shared across helvety.com, helvety-auth, helvety-pdf, helvety-st
 - `lib/rate-limit.ts`
 - `lib/csrf.ts`
 
+### Environment & Session (must be identical across repos that use them)
+
+- `lib/env-validation.ts` – helvety-store: not synced; keeps its own file with Stripe key validation. Other apps: synced.
+- `lib/session-config.ts`
+
+### Supabase Clients (must be identical)
+
+- `lib/supabase/client.ts`
+- `lib/supabase/server.ts`
+- `lib/supabase/admin.ts`
+- `lib/supabase/client-factory.ts`
+
 ### Types (must be identical)
 
 - `lib/types/entities.ts` – shared entity types (UserAuthCredential, UserPasskeyParams, UserProfile, ActionResponse)
@@ -94,4 +106,9 @@ This eliminates manual sync and ensures security fixes propagate instantly acros
 
 ## Sync Script
 
-Run `node scripts/sync-shared.js` from helvety.com to copy all shared files to the other repos. Use `--dry-run` to preview changes. The script validates source files, reports diffs, and provides a summary.
+Run `node scripts/sync-shared.js` from helvety.com to copy all shared files to the other repos.
+
+- `--dry-run` – Preview changes without copying files
+- `--check` – Compare only; exits with code 1 if any files have drifted (useful for CI or pre-deploy verification)
+
+The script validates source files, reports diffs, and provides a summary.
