@@ -291,6 +291,8 @@ Browser requirements for encryption:
 
 This application is developed and maintained by [Helvety](https://helvety.com), a Swiss company committed to transparency, strong security, and respect for user privacy and data protection.
 
+Vercel Analytics is used across all Helvety apps for privacy-focused, anonymous page view statistics. Vercel Speed Insights is enabled only on [helvety.com](https://helvety.com). See our [Privacy Policy](https://helvety.com/privacy) for details.
+
 For questions or inquiries, please contact us at [contact@helvety.com](mailto:contact@helvety.com).
 
 ## License & Usage

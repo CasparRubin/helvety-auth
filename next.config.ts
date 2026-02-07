@@ -53,11 +53,11 @@ const nextConfig: NextConfig = {
         // - HTTPOnly cookies for authentication
         value: [
           "default-src 'self'",
-          `script-src 'self'${isDevelopment ? " 'unsafe-eval'" : ""} 'unsafe-inline'`,
+          `script-src 'self'${isDevelopment ? " 'unsafe-eval'" : ""} 'unsafe-inline' https://va.vercel-scripts.com`,
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: https: blob:",
           "font-src 'self' data:",
-          "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co",
+          "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://va.vercel-scripts.com",
           "frame-src 'self'",
           "object-src 'none'",
           "base-uri 'self'",
