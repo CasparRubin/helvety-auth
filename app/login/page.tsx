@@ -33,9 +33,7 @@ import { isMobileDevice } from "@/lib/device-utils";
 import { logger } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/client";
 
-/**
- *
- */
+/** Steps in the login flow, rendered sequentially. */
 type LoginStep =
   | "email" // Enter email
   | "email-sent" // Magic link sent (new users or existing without passkey)
@@ -44,9 +42,7 @@ type LoginStep =
   | "passkey-verify" // Verify newly created passkey
   | "encryption-setup"; // Set up encryption with passkey
 
-/**
- *
- */
+/** Main login flow component handling email, magic link, and passkey steps. */
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -663,10 +659,7 @@ function LoginContent() {
   );
 }
 
-// Wrap in Suspense because useSearchParams requires it
-/**
- *
- */
+/** Login page wrapped in Suspense (required by useSearchParams). */
 export default function LoginPage() {
   return (
     <Suspense

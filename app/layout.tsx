@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import "./globals.css";
 
 import { AuthTokenHandler } from "@/components/auth-token-handler";
+import { CookieNotice } from "@/components/cookie-notice";
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -114,6 +115,7 @@ export default function RootLayout({
                   </div>
                 </div>
                 <Footer />
+                <CookieNotice />
               </div>
               <Toaster />
             </TooltipProvider>

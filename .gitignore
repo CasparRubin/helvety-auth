@@ -59,5 +59,8 @@ next-env.d.ts
 bun.lock
 *.lock-*.tmp
 
+# auto-generated
+lib/config/version.ts
+
 # playwright
 /playwright-report/

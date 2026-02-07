@@ -285,7 +285,7 @@ Browser requirements for encryption:
 
 **Note:** Firefox for Android does not support the PRF extension.
 
-**Legal Pages:** Privacy Policy, Terms of Service, and Impressum are hosted centrally on [helvety.com](https://helvety.com) and linked in the site footer.
+**Legal Pages:** Privacy Policy, Terms of Service, and Impressum are hosted centrally on [helvety.com](https://helvety.com) and linked in the site footer. An informational cookie notice informs visitors that only essential cookies are used (Swiss nDSG / EU ePrivacy compliant).
 
 ## Developer
 
