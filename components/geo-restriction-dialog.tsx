@@ -53,6 +53,11 @@ export function GeoRestrictionDialog({
 
   const handleConfirm = () => {
     sessionStorage.setItem(STORAGE_KEY, "true");
+    // Log geo-restriction confirmation with timestamp for legal audit trail
+    sessionStorage.setItem(
+      "helvety_geo_ch_confirmed_at",
+      new Date().toISOString()
+    );
     setConfirmed(true);
   };
 
