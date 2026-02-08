@@ -30,8 +30,8 @@ export type AuthEvent =
   | "passkey_auth_started"
   | "passkey_auth_success"
   | "passkey_auth_failed"
-  | "magic_link_sent"
-  | "magic_link_failed"
+  | "otp_sent"
+  | "otp_failed"
   | "rate_limit_exceeded"
   | "csrf_validation_failed"
   | "redirect_blocked";
@@ -76,8 +76,8 @@ const EVENT_LEVELS: Record<AuthEvent, LogLevel> = {
   passkey_auth_started: "info",
   passkey_auth_success: "info",
   passkey_auth_failed: "warn",
-  magic_link_sent: "info",
-  magic_link_failed: "warn",
+  otp_sent: "info",
+  otp_failed: "warn",
   rate_limit_exceeded: "warn",
   csrf_validation_failed: "error",
   redirect_blocked: "error",

@@ -221,8 +221,10 @@ export const RATE_LIMITS = {
   LOGIN: { maxRequests: 5, windowMs: 60 * 1000 },
   /** Passkey authentication: 10 per minute per IP */
   PASSKEY: { maxRequests: 10, windowMs: 60 * 1000 },
-  /** Magic link requests: 3 per 5 minutes per email */
-  MAGIC_LINK: { maxRequests: 3, windowMs: 5 * 60 * 1000 },
+  /** Verification code / OTP email requests: 3 per 5 minutes per email */
+  OTP: { maxRequests: 3, windowMs: 5 * 60 * 1000 },
+  /** OTP code verification attempts: 5 per 5 minutes per email */
+  OTP_VERIFY: { maxRequests: 5, windowMs: 5 * 60 * 1000 },
   /** Encryption unlock attempts: 5 per minute per user */
   ENCRYPTION_UNLOCK: { maxRequests: 5, windowMs: 60 * 1000 },
   /** API calls: 100 per minute per user */

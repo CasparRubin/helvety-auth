@@ -9,7 +9,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense, useCallback } from "react";
 
 import {
-  sendMagicLink,
+  sendVerificationCode,
+  verifyEmailCode,
   generatePasskeyRegistrationOptions,
   verifyPasskeyRegistration,
   generatePasskeyAuthOptions,
@@ -36,13 +37,13 @@ import { createClient } from "@/lib/supabase/client";
 /** Steps in the login flow, rendered sequentially. */
 type LoginStep =
   | "email" // Enter email
-  | "email-sent" // Magic link sent (new users or existing without passkey)
+  | "verify-code" // Enter OTP code from email
   | "passkey-setup" // deprecated: use encryption-setup
   | "passkey-signin" // Sign in with existing passkey
   | "passkey-verify" // Verify newly created passkey
   | "encryption-setup"; // Set up encryption with passkey
 
-/** Main login flow component handling email, magic link, and passkey steps. */
+/** Main login flow component handling email, OTP verification, and passkey steps. */
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -80,12 +81,23 @@ function LoginContent() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [skippedToPasskey, setSkippedToPasskey] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   // Device detection for passkey flow (client-only, set on mount)
   useEffect(() => {
     const id = setTimeout(() => setIsMobile(isMobileDevice()), 0);
     return () => clearTimeout(id);
   }, []);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   // Initialize: check passkey support and existing session
   useEffect(() => {
@@ -149,7 +161,7 @@ function LoginContent() {
     void init();
   }, [supabase, step, redirectUri]);
 
-  // Handle email submission; sends magic link for new users (or existing without passkey), otherwise goes to passkey sign-in
+  // Handle email submission; sends OTP code for new users (or existing without passkey), otherwise goes to passkey sign-in
   const handleEmailSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -157,7 +169,7 @@ function LoginContent() {
       setIsLoading(true);
 
       try {
-        const result = await sendMagicLink(email, redirectUri ?? undefined);
+        const result = await sendVerificationCode(email);
 
         if (!result.success) {
           setError(result.error ?? "Failed to send verification email");
@@ -165,9 +177,16 @@ function LoginContent() {
           return;
         }
 
-        // Always show email-sent step (generic response to prevent email enumeration)
-        // Users with passkeys can click "Sign in with passkey" button instead
-        setStep("email-sent");
+        if (result.data?.hasPasskey) {
+          // Existing user with passkey - go directly to passkey sign-in
+          setSkippedToPasskey(true);
+          setStep("passkey-signin");
+        } else {
+          // New user or no passkey - show code input
+          setOtpCode("");
+          setResendCooldown(120);
+          setStep("verify-code");
+        }
         setIsLoading(false);
       } catch (err) {
         logger.error("Email submission error:", err);
@@ -175,8 +194,62 @@ function LoginContent() {
         setIsLoading(false);
       }
     },
-    [email, redirectUri]
+    [email]
   );
+
+  // Handle OTP code verification
+  const handleCodeVerify = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError("");
+      setIsLoading(true);
+
+      try {
+        const result = await verifyEmailCode(email, otpCode);
+
+        if (!result.success) {
+          setError(result.error ?? "Verification failed");
+          setIsLoading(false);
+          return;
+        }
+
+        if (result.data) {
+          setUserId(result.data.userId);
+          setStep(result.data.nextStep);
+        }
+        setIsLoading(false);
+      } catch (err) {
+        logger.error("Code verification error:", err);
+        setError("An unexpected error occurred");
+        setIsLoading(false);
+      }
+    },
+    [email, otpCode]
+  );
+
+  // Handle resending OTP code
+  const handleResendCode = useCallback(async () => {
+    if (resendCooldown > 0) return;
+
+    setError("");
+    setIsLoading(true);
+
+    try {
+      const result = await sendVerificationCode(email);
+
+      if (!result.success) {
+        setError(result.error ?? "Failed to resend code");
+      } else {
+        setResendCooldown(120);
+        setOtpCode("");
+      }
+      setIsLoading(false);
+    } catch (err) {
+      logger.error("Resend code error:", err);
+      setError("An unexpected error occurred");
+      setIsLoading(false);
+    }
+  }, [email, resendCooldown]);
 
   // Handle passkey setup (for new users)
   const handlePasskeySetup = useCallback(async () => {
@@ -321,7 +394,7 @@ function LoginContent() {
     }
   }, [redirectUri, router]);
 
-  // Auto-trigger passkey authentication for existing users who skipped magic link
+  // Auto-trigger passkey authentication for existing users who skipped email verification
   useEffect(() => {
     if (
       step === "passkey-signin" &&
@@ -350,12 +423,14 @@ function LoginContent() {
     setError("");
     setIsLoading(false);
     setSkippedToPasskey(false);
+    setOtpCode("");
+    setResendCooldown(0);
   };
 
   // Show loading while checking auth
   if (checkingAuth) {
     return (
-      <div className="flex min-h-screen flex-col items-center px-4 pt-8 md:pt-16 lg:pt-24">
+      <div className="flex flex-col items-center px-4 pt-8 md:pt-16 lg:pt-24">
         <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
       </div>
     );
@@ -364,7 +439,7 @@ function LoginContent() {
   // Determine current stepper step
   const currentAuthStep: AuthStep = (() => {
     if (step === "email") return "email";
-    if (step === "email-sent") return "verify";
+    if (step === "verify-code") return "verify";
     if (step === "encryption-setup") return "passkey";
     return "passkey";
   })();
@@ -374,7 +449,7 @@ function LoginContent() {
   const isReturningUser = isNewUserParam === "false" || skippedToPasskey;
 
   return (
-    <div className="flex min-h-screen flex-col items-center px-4 pt-8 md:pt-16 lg:pt-24">
+    <div className="flex flex-col items-center px-4 pt-8 md:pt-16 lg:pt-24">
       <div className="flex w-full max-w-md flex-col items-center space-y-6">
         {/* Show stepper - hidden when EncryptionSetup is shown (it has its own stepper) */}
         {step !== "encryption-setup" && (
@@ -400,7 +475,7 @@ function LoginContent() {
             <CardHeader>
               <CardTitle>
                 {step === "email" && "Welcome to Helvety"}
-                {step === "email-sent" && "Check Your Email"}
+                {step === "verify-code" && "Check Your Email"}
                 {step === "passkey-setup" && "Set Up Your Passkey"}
                 {step === "passkey-signin" && "Sign In with Passkey"}
                 {step === "passkey-verify" && "Verify Your Passkey"}
@@ -408,8 +483,8 @@ function LoginContent() {
               <CardDescription>
                 {step === "email" &&
                   "Enter your email to sign in or create an account"}
-                {step === "email-sent" &&
-                  `We sent a verification link to ${email}`}
+                {step === "verify-code" &&
+                  `We sent a verification code to ${email}. Check your spam folder if you don\u2019t see it.`}
                 {step === "passkey-setup" &&
                   "Create a passkey to secure your account"}
                 {step === "passkey-signin" && "Use your passkey to sign in"}
@@ -456,24 +531,46 @@ function LoginContent() {
                   </Button>
 
                   <p className="text-muted-foreground text-center text-xs">
-                    We&apos;ll send a verification link only if you&apos;re new;
+                    We&apos;ll send a verification code only if you&apos;re new;
                     otherwise sign in with your passkey.
                   </p>
                 </form>
               )}
 
-              {/* Step 2: Email sent */}
-              {step === "email-sent" && (
-                <div className="space-y-4">
+              {/* Step 2: Enter verification code */}
+              {step === "verify-code" && (
+                <form onSubmit={handleCodeVerify} className="space-y-4">
                   <div className="flex items-center justify-center py-4">
                     <div className="bg-primary/10 flex h-16 w-16 items-center justify-center rounded-full">
                       <Mail className="text-primary h-8 w-8" />
                     </div>
                   </div>
 
+                  <div className="space-y-2">
+                    <Label htmlFor="otp-code">Verification code</Label>
+                    <Input
+                      id="otp-code"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={8}
+                      placeholder="00000000"
+                      value={otpCode}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, "");
+                        setOtpCode(value);
+                      }}
+                      required
+                      autoFocus
+                      disabled={isLoading}
+                      className="text-center text-2xl tracking-[0.3em]"
+                      autoComplete="one-time-code"
+                    />
+                  </div>
+
                   <p className="text-muted-foreground text-center text-sm">
-                    Click the link in the email to continue. The link will
-                    expire in 1 hour.
+                    Enter the code we sent to your email. The code expires in 1
+                    hour.
                   </p>
 
                   {error && (
@@ -483,15 +580,43 @@ function LoginContent() {
                   )}
 
                   <Button
-                    type="button"
-                    variant="ghost"
+                    type="submit"
+                    disabled={isLoading || otpCode.length < 6}
+                    size="lg"
                     className="w-full"
-                    onClick={handleBack}
                   >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Use a different email
+                    {isLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Mail className="mr-2 h-4 w-4" />
+                    )}
+                    Verify Code
                   </Button>
-                </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full"
+                      onClick={handleResendCode}
+                      disabled={isLoading || resendCooldown > 0}
+                    >
+                      {resendCooldown > 0
+                        ? `Resend code (${resendCooldown}s)`
+                        : "Resend code"}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full"
+                      onClick={handleBack}
+                    >
+                      <ArrowLeft className="mr-2 h-4 w-4" />
+                      Use a different email
+                    </Button>
+                  </div>
+                </form>
               )}
 
               {/* Step 3: Passkey setup (new users) */}
@@ -664,7 +789,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen flex-col items-center px-4 pt-8 md:pt-16 lg:pt-24">
+        <div className="flex flex-col items-center px-4 pt-8 md:pt-16 lg:pt-24">
           <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
         </div>
       }

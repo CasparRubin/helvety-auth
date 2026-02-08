@@ -37,8 +37,8 @@ export enum AuthErrorCode {
   FORBIDDEN = "forbidden",
   /** Invalid redirect URI */
   INVALID_REDIRECT = "invalid_redirect",
-  /** Magic link expired or invalid */
-  MAGIC_LINK_INVALID = "magic_link_invalid",
+  /** Verification code expired or invalid */
+  OTP_INVALID = "otp_invalid",
   /** Email already in use */
   EMAIL_IN_USE = "email_in_use",
   /** Generic server error */
@@ -77,8 +77,8 @@ export const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
   [AuthErrorCode.FORBIDDEN]:
     "You don't have permission to perform this action.",
   [AuthErrorCode.INVALID_REDIRECT]: "Invalid redirect destination.",
-  [AuthErrorCode.MAGIC_LINK_INVALID]:
-    "This sign-in link has expired or is invalid. Please request a new one.",
+  [AuthErrorCode.OTP_INVALID]:
+    "This verification code has expired or is invalid. Please request a new one.",
   [AuthErrorCode.EMAIL_IN_USE]:
     "An account with this email already exists. Please sign in instead.",
   [AuthErrorCode.SERVER_ERROR]: "Something went wrong. Please try again later.",

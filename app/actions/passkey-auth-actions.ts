@@ -72,7 +72,7 @@ function generatePRFSalt(): string {
 }
 
 // =============================================================================
-// EMAIL + MAGIC LINK AUTHENTICATION
+// EMAIL + OTP CODE AUTHENTICATION
 // =============================================================================
 
 /**
@@ -88,36 +88,35 @@ async function getClientIP(): Promise<string> {
 }
 
 /**
- * Send a magic link to the user's email for authentication.
+ * Send a verification code (OTP) to the user's email for authentication.
  * Creates a new account if the user doesn't exist.
+ * Skips sending email for existing users who already have passkeys registered
+ * (they should use passkey sign-in directly instead).
  *
  * Security:
  * - Rate limited to prevent email spam attacks
  * - Email is normalized to prevent duplicates
  * - Logs all attempts for audit trail
- * - Returns generic response to prevent email enumeration
  *
  * @param email - The user's email address
- * @param redirectUri - Optional redirect URI to preserve through auth flow
- * @returns Success status (generic to prevent email enumeration)
+ * @returns Whether a code was sent or the user should use passkey sign-in
  */
-export async function sendMagicLink(
-  email: string,
-  redirectUri?: string
-): Promise<PasskeyActionResponse<{ emailSent: boolean }>> {
+export async function sendVerificationCode(
+  email: string
+): Promise<PasskeyActionResponse<{ codeSent: boolean; hasPasskey: boolean }>> {
   const normalizedEmail = email.toLowerCase().trim();
   const clientIP = await getClientIP();
 
   // Rate limit by email AND IP to prevent abuse
   const emailRateLimit = await checkRateLimit(
-    `magic_link:email:${normalizedEmail}`,
-    RATE_LIMITS.MAGIC_LINK.maxRequests,
-    RATE_LIMITS.MAGIC_LINK.windowMs
+    `otp:email:${normalizedEmail}`,
+    RATE_LIMITS.OTP.maxRequests,
+    RATE_LIMITS.OTP.windowMs
   );
   const ipRateLimit = await checkRateLimit(
-    `magic_link:ip:${clientIP}`,
-    RATE_LIMITS.MAGIC_LINK.maxRequests * 3, // Allow more per IP (multiple users)
-    RATE_LIMITS.MAGIC_LINK.windowMs
+    `otp:ip:${clientIP}`,
+    RATE_LIMITS.OTP.maxRequests * 3, // Allow more per IP (multiple users)
+    RATE_LIMITS.OTP.windowMs
   );
 
   if (!emailRateLimit.allowed || !ipRateLimit.allowed) {
@@ -125,7 +124,7 @@ export async function sendMagicLink(
       emailRateLimit.retryAfter ?? ipRateLimit.retryAfter ?? 60;
     logAuthEvent("rate_limit_exceeded", {
       metadata: {
-        action: "sendMagicLink",
+        action: "sendVerificationCode",
         email: `${normalizedEmail.slice(0, 3)}***`,
         retryAfter,
       },
@@ -138,7 +137,7 @@ export async function sendMagicLink(
   }
 
   logAuthEvent("login_started", {
-    metadata: { method: "magic_link" },
+    metadata: { method: "otp" },
     ip: clientIP,
   });
 
@@ -151,7 +150,7 @@ export async function sendMagicLink(
       return { success: false, error: "Please enter a valid email address" };
     }
 
-    // Check if user exists (for internal logging only, not exposed to client)
+    // Check if user exists
     const { data: existingUsers, error: listError } =
       await adminClient.auth.admin.listUsers();
 
@@ -160,7 +159,7 @@ export async function sendMagicLink(
       // Return generic success to prevent enumeration
       return {
         success: true,
-        data: { emailSent: true },
+        data: { codeSent: true, hasPasskey: false },
       };
     }
 
@@ -168,13 +167,30 @@ export async function sendMagicLink(
       (u) => u.email?.toLowerCase() === normalizedEmail
     );
 
+    // If user exists, check if they have a passkey
+    if (existingUser) {
+      const passkeyStatus = await checkUserPasskeyStatus(existingUser.id);
+      if (passkeyStatus.success && passkeyStatus.data?.hasPasskey) {
+        // Existing user with passkey - skip email, direct to passkey sign-in
+        logAuthEvent("login_started", {
+          metadata: { method: "passkey_direct", hasPasskey: true },
+          ip: clientIP,
+        });
+        return {
+          success: true,
+          data: { codeSent: false, hasPasskey: true },
+        };
+      }
+    }
+
+    // New user or existing user without passkey - send OTP code
     let isNewUser = false;
 
     if (!existingUser) {
       // Create new user
       const { error: createError } = await adminClient.auth.admin.createUser({
         email: normalizedEmail,
-        email_confirm: false, // Will be confirmed when they click the link
+        email_confirm: false, // Will be confirmed when they verify the OTP code
       });
 
       if (createError) {
@@ -182,73 +198,178 @@ export async function sendMagicLink(
         // Return generic success to prevent enumeration
         return {
           success: true,
-          data: { emailSent: true },
+          data: { codeSent: true, hasPasskey: false },
         };
       }
 
       isNewUser = true;
     }
 
-    // Log passkey status internally (not exposed to prevent enumeration)
-    if (existingUser) {
-      const passkeyStatus = await checkUserPasskeyStatus(existingUser.id);
-      if (passkeyStatus.success && passkeyStatus.data?.hasPasskey) {
-        logAuthEvent("login_started", {
-          metadata: { method: "magic_link", hasPasskey: true },
-          ip: clientIP,
-        });
-      }
-    }
-
-    // Always send magic link (for all users, including those with passkeys)
-    // This prevents email enumeration by ensuring consistent behavior
-    const origin =
-      process.env.NEXT_PUBLIC_APP_URL ?? "https://auth.helvety.com";
-    const callbackUrl = redirectUri
-      ? `${origin}/auth/callback?redirect_uri=${encodeURIComponent(redirectUri)}`
-      : `${origin}/auth/callback`;
-
+    // Send OTP email (no emailRedirectTo needed - user types the code)
     const { error: signInError } = await adminClient.auth.signInWithOtp({
       email: normalizedEmail,
-      options: {
-        emailRedirectTo: callbackUrl,
-      },
     });
 
     if (signInError) {
-      logger.error("Error sending magic link:", signInError);
-      logAuthEvent("magic_link_failed", {
+      logger.error("Error sending verification code:", signInError);
+      logAuthEvent("otp_failed", {
         metadata: { reason: signInError.message },
         ip: clientIP,
       });
       // Return generic success to prevent enumeration
       return {
         success: true,
-        data: { emailSent: true },
+        data: { codeSent: true, hasPasskey: false },
       };
     }
 
     // Log internally only
-    logAuthEvent("magic_link_sent", {
-      metadata: { isNewUser },
+    logAuthEvent("otp_sent", {
+      metadata: { isNewUser, method: "otp" },
       ip: clientIP,
     });
 
-    // Security: Always return same response shape regardless of user existence
     return {
       success: true,
-      data: { emailSent: true },
+      data: { codeSent: true, hasPasskey: false },
     };
   } catch (error) {
-    logger.error("Error in sendMagicLink:", error);
-    logAuthEvent("magic_link_failed", {
+    logger.error("Error in sendVerificationCode:", error);
+    logAuthEvent("otp_failed", {
       metadata: { reason: "unexpected_error" },
       ip: clientIP,
     });
     // Return generic success to prevent enumeration
     return {
       success: true,
-      data: { emailSent: true },
+      data: { codeSent: true, hasPasskey: false },
+    };
+  }
+}
+
+/**
+ * Verify an OTP code that was sent to the user's email.
+ * Creates a session on success and determines the next authentication step.
+ *
+ * Security:
+ * - Rate limited to prevent brute force attacks
+ * - Uses server Supabase client for proper session/cookie handling
+ * - Logs all attempts for audit trail
+ *
+ * @param email - The user's email address
+ * @param code - The OTP code from the email
+ * @returns The next step the user needs to complete
+ */
+export async function verifyEmailCode(
+  email: string,
+  code: string
+): Promise<
+  PasskeyActionResponse<{
+    nextStep: "encryption-setup" | "passkey-signin";
+    userId: string;
+    isNewUser: boolean;
+  }>
+> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const clientIP = await getClientIP();
+
+  // Rate limit by email AND IP to prevent brute force
+  const emailRateLimit = await checkRateLimit(
+    `otp_verify:email:${normalizedEmail}`,
+    RATE_LIMITS.OTP_VERIFY.maxRequests,
+    RATE_LIMITS.OTP_VERIFY.windowMs
+  );
+  const ipRateLimit = await checkRateLimit(
+    `otp_verify:ip:${clientIP}`,
+    RATE_LIMITS.OTP_VERIFY.maxRequests * 3,
+    RATE_LIMITS.OTP_VERIFY.windowMs
+  );
+
+  if (!emailRateLimit.allowed || !ipRateLimit.allowed) {
+    const retryAfter =
+      emailRateLimit.retryAfter ?? ipRateLimit.retryAfter ?? 60;
+    logAuthEvent("rate_limit_exceeded", {
+      metadata: {
+        action: "verifyEmailCode",
+        email: `${normalizedEmail.slice(0, 3)}***`,
+        retryAfter,
+      },
+      ip: clientIP,
+    });
+    return {
+      success: false,
+      error: `Too many attempts. Please wait ${retryAfter} seconds before trying again.`,
+    };
+  }
+
+  try {
+    // Validate code format (6-8 digits, depending on Supabase config)
+    if (!/^\d{6,8}$/.test(code)) {
+      return {
+        success: false,
+        error: "Please enter a valid verification code",
+      };
+    }
+
+    // Use server client (not admin) so session cookies are properly set
+    const supabase = await createClient();
+
+    const { data, error: verifyError } = await supabase.auth.verifyOtp({
+      email: normalizedEmail,
+      token: code,
+      type: "email",
+    });
+
+    if (verifyError || !data.user) {
+      logAuthEvent("login_failed", {
+        metadata: { method: "otp", reason: verifyError?.message ?? "no_user" },
+        ip: clientIP,
+      });
+      return {
+        success: false,
+        error: "Invalid or expired code. Please try again.",
+      };
+    }
+
+    const user = data.user;
+
+    // Reset rate limit on successful verification
+    await resetRateLimit(`otp_verify:email:${normalizedEmail}`);
+    await resetRateLimit(`otp_verify:ip:${clientIP}`);
+
+    logAuthEvent("login_success", {
+      userId: user.id,
+      metadata: { method: "otp" },
+      ip: clientIP,
+    });
+
+    // Check passkey/encryption status to determine next step
+    const passkeyResult = await checkUserPasskeyStatus(user.id);
+    const hasPasskey = passkeyResult.success && passkeyResult.data?.hasPasskey;
+
+    const encryptionResult = await hasEncryptionSetup();
+    const hasEncryption = encryptionResult.success && encryptionResult.data;
+
+    let nextStep: "encryption-setup" | "passkey-signin";
+    if (!hasPasskey || !hasEncryption) {
+      nextStep = "encryption-setup";
+    } else {
+      nextStep = "passkey-signin";
+    }
+
+    return {
+      success: true,
+      data: {
+        nextStep,
+        userId: user.id,
+        isNewUser: !hasPasskey,
+      },
+    };
+  } catch (error) {
+    logger.error("Error in verifyEmailCode:", error);
+    return {
+      success: false,
+      error: "Verification failed. Please try again.",
     };
   }
 }
@@ -752,8 +873,8 @@ export async function generatePasskeyAuthOptions(
  * Verify passkey authentication and create a session
  * Called after the user completes the WebAuthn authentication ceremony
  *
- * After successful passkey verification, this verifies a magic link token
- * server-side to create the session immediately, then returns a redirect URL.
+ * After successful passkey verification, this generates and verifies an auth
+ * token server-side to create the session immediately, then returns a redirect URL.
  *
  * Security:
  * - Rate limited to prevent brute force attacks
@@ -875,7 +996,7 @@ export async function verifyPasskeyAuthentication(
       };
     }
 
-    // Get user email for generating magic link
+    // Get user email for generating auth token
     const { data: userData, error: userError } =
       await adminClient.auth.admin.getUserById(credential.user_id);
 
@@ -888,7 +1009,7 @@ export async function verifyPasskeyAuthentication(
       return { success: false, error: "User has no email" };
     }
 
-    // Generate a magic link for the user and verify it server-side immediately
+    // Generate an auth token for the user and verify it server-side immediately
     // This creates the session directly without requiring client navigation to Supabase
     // which would lose the session tokens in hash fragments during server redirect
     const { data: linkData, error: linkError } =
@@ -902,7 +1023,7 @@ export async function verifyPasskeyAuthentication(
       return { success: false, error: "Failed to create session" };
     }
 
-    // Verify the magic link token server-side to create the session immediately
+    // Verify the auth token server-side to create the session immediately
     // This avoids the PKCE/hash fragment issue where tokens are lost on server redirect
     const supabase = await createClient();
     const { error: verifyError } = await supabase.auth.verifyOtp({

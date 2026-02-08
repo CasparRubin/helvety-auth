@@ -18,7 +18,7 @@ Helvety Auth (`auth.helvety.com`) handles all authentication for Helvety applica
 
 ## Features
 
-- **Email + Passkey Authentication** - Magic links for new users (and existing without passkey); existing users with a passkey go straight to passkey sign-in
+- **Email + Passkey Authentication** - OTP verification codes for new users (and existing without passkey); existing users with a passkey go straight to passkey sign-in
 - **WebAuthn/FIDO2** - Device-aware passkey auth: on mobile, use this device (Face ID/fingerprint/PIN); on desktop, use phone via QR code + biometrics
 - **Cross-Subdomain SSO** - Single sign-on across all `*.helvety.com` apps
 - **Redirect URI Support** - Seamless cross-app authentication flows
@@ -33,7 +33,7 @@ Helvety Auth (`auth.helvety.com`) handles all authentication for Helvety applica
 
 ## Authentication Flows
 
-New users receive a magic link to verify email, then complete passkey setup. Existing users with a passkey skip the email and sign in with passkey directly.
+New users receive a verification code by email to verify their address, then complete passkey setup. Existing users with a passkey skip the email and sign in with passkey directly.
 
 ### New User Flow
 
@@ -47,10 +47,10 @@ sequenceDiagram
     participant S as Supabase
 
     U->>A: Enter email address
-    A->>S: Send magic link
-    S-->>U: Email with magic link
-    U->>A: Click magic link
-    A->>S: Verify email
+    A->>S: Send OTP code
+    S-->>U: Email with verification code
+    U->>A: Enter verification code
+    A->>S: Verify OTP code
     S-->>A: Email verified
     A->>U: Show passkey setup
     alt Desktop
@@ -69,7 +69,7 @@ sequenceDiagram
 
 ### Returning User Flow
 
-Existing users with a passkey do not receive a magic link. After entering their email, the passkey prompt appears automatically (no button click required).
+Existing users with a passkey do not receive an email. After entering their email, the passkey prompt appears automatically (no button click required).
 
 Same device logic: **mobile** = sign in on this device; **desktop** = scan QR with phone and authenticate on phone.
 
@@ -100,14 +100,14 @@ Note: Passkey authentication creates the session directly server-side (via `veri
 ### Key Points
 
 - **Email required** - Users provide an email address for authentication and account recovery
-- **Magic link only for new users** - New users (and existing users without a passkey) get a verification email; existing users with a passkey sign in directly with passkey
+- **Verification code only for new users** - New users (and existing users without a passkey) receive an OTP code by email; existing users with a passkey sign in directly with passkey
 - **Passkey security** - Biometric verification (Face ID, fingerprint, or PIN) via WebAuthn
 
 ## API Routes
 
 ### GET `/auth/callback`
 
-Handles authentication callbacks from email magic links (new users or existing users without a passkey) and OAuth flows. After successful email verification, redirects to the login page with the appropriate passkey step.
+Handles authentication callbacks from email verification (backwards-compatible fallback) and OAuth flows. The primary sign-in flow now uses OTP codes typed by the user, but this route is kept for in-flight links, password reset, invite, and email change flows. After successful verification, redirects to the login page with the appropriate passkey step.
 
 **Note:** This route is NOT used for passkey sign-in. Passkey authentication creates the session directly server-side and redirects the user to their destination without going through this callback.
 
@@ -120,7 +120,7 @@ Handles authentication callbacks from email magic links (new users or existing u
 
 **Behavior:**
 
-- Verifies the magic link token (via code exchange or OTP verification)
+- Verifies the email token (via code exchange or OTP verification)
 - Checks if user has a passkey and encryption configured
 - Redirects based on user status:
   - New users or missing encryption: `/login?step=encryption-setup`
@@ -210,7 +210,7 @@ CREATE TABLE user_passkey_params (
 
 - **httpOnly Cookies** - Challenge storage uses secure httpOnly cookies
 - **PKCE Flow** - Supabase uses PKCE for OAuth code exchange
-- **Magic Link Expiry** - Links expire after 1 hour
+- **OTP Code Expiry** - Verification codes expire after 1 hour
 - **Passkey Verification** - Strict origin and RP ID validation
 - **Session Cookies** - Shared across subdomains via `.helvety.com` domain
 - **Counter Tracking** - Prevents passkey replay attacks
@@ -221,14 +221,15 @@ CREATE TABLE user_passkey_params (
 The auth service implements comprehensive security hardening:
 
 - **Rate Limiting** - Protection against brute force attacks:
-  - Magic link requests: 3 per 5 minutes per email, 9 per 5 minutes per IP
+  - Verification code requests: 3 per 5 minutes per email, 9 per 5 minutes per IP
+  - OTP verification attempts: 5 per 5 minutes per email, 15 per 5 minutes per IP
   - Passkey authentication: 10 per minute per IP
   - Rate limits reset on successful authentication
 - **CSRF Protection** - Token-based protection with timing-safe comparison for all state-changing Server Actions
 - **Server Layout Guards** - Authentication checks in Server Components (CVE-2025-29927 compliant - auth NOT in proxy)
 - **Audit Logging** - Structured logging for all authentication events:
   - Login attempts (success/failure)
-  - Magic link sent/failed
+  - Verification code sent/failed
   - Passkey authentication (started/success/failed)
   - Rate limit exceeded events
 - **Standardized Errors** - Consistent error codes and user-friendly messages that don't leak implementation details
