@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 import { getRequiredAuthStep, buildLoginUrl } from "@/lib/auth-utils";
@@ -26,7 +26,6 @@ import { createClient } from "@/lib/supabase/client";
  */
 export function AuthTokenHandler() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const supabase = createClient();
   const processingRef = useRef(false);
 
@@ -51,8 +50,10 @@ export function AuthTokenHandler() {
 
     processingRef.current = true;
 
-    // Get redirect_uri from query params BEFORE we do anything
-    const redirectUri = searchParams.get("redirect_uri");
+    // Read search params directly from the URL (avoids useSearchParams which
+    // requires Suspense and can cause hydration mismatches with Radix IDs)
+    const queryParams = new URLSearchParams(window.location.search);
+    const redirectUri = queryParams.get("redirect_uri");
 
     // Set the session from hash tokens
     void (async () => {
@@ -81,7 +82,7 @@ export function AuthTokenHandler() {
         }
 
         // Check for passkey_verified param (legacy fallback - passkey auth now creates session directly)
-        const passkeyVerified = searchParams.get("passkey_verified") === "true";
+        const passkeyVerified = queryParams.get("passkey_verified") === "true";
 
         // Check what auth step the user needs to complete
         const { step, hasPasskey, hasEncryption } = await getRequiredAuthStep(
@@ -104,7 +105,7 @@ export function AuthTokenHandler() {
         processingRef.current = false;
       }
     })();
-  }, [router, supabase, searchParams]);
+  }, [router, supabase]);
 
   return null;
 }

@@ -3,6 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light only" />
+    <meta name="supported-color-schemes" content="light only" />
+    <style>
+      :root {
+        color-scheme: light only;
+      }
+    </style>
   </head>
   <body
     style="
@@ -64,22 +71,27 @@
                     padding: 16px 32px;
                     background-color: #f5f5f5;
                     border: 1px solid #e5e5e5;
-                    margin-bottom: 24px;
+                    font-size: 32px;
+                    font-weight: 700;
+                    letter-spacing: 0.3em;
+                    color: #1a1a1a;
+                    font-family: monospace, monospace;
                   "
                 >
-                  <span
-                    style="
-                      font-size: 32px;
-                      font-weight: 600;
-                      letter-spacing: 4px;
-                      color: #1a1a1a;
-                    "
-                    >{{ .Token }}</span
-                  >
+                  {{ .Token }}
                 </div>
-                <p style="margin: 0; font-size: 14px; color: #737373">
-                  This code will expire shortly. If you didn't request this
-                  code, please secure your account.
+                <p
+                  style="
+                    margin: 24px 0 0 0;
+                    font-size: 14px;
+                    line-height: 1.6;
+                    color: #737373;
+                  "
+                >
+                  This code will expire shortly.
+                </p>
+                <p style="margin: 16px 0 0 0; font-size: 14px; color: #737373">
+                  If you didn't request this code, please secure your account.
                 </p>
               </td>
             </tr>

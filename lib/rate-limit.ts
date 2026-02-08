@@ -38,6 +38,7 @@ export interface RateLimitResult {
 // =============================================================================
 
 let redis: Redis | null = null;
+let hasWarnedMissingRedis = false;
 
 /**
  * Get or create the Upstash Redis client.
@@ -50,6 +51,14 @@ function getRedis(): Redis | null {
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (!url || !token) {
+    if (process.env.NODE_ENV === "production" && !hasWarnedMissingRedis) {
+      hasWarnedMissingRedis = true;
+      console.warn(
+        "WARNING: UPSTASH_REDIS_REST_URL and/or UPSTASH_REDIS_REST_TOKEN are not configured. " +
+          "Rate limiting will fall back to in-memory mode, which does not persist across serverless invocations. " +
+          "Configure Upstash Redis for distributed rate limiting: https://console.upstash.com/"
+      );
+    }
     return null;
   }
 

@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  startRegistration,
-  startAuthentication,
-} from "@simplewebauthn/browser";
+import { startAuthentication } from "@simplewebauthn/browser";
 import { Loader2, ArrowLeft, Mail, KeyRound, CheckCircle2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense, useCallback } from "react";
@@ -11,8 +8,6 @@ import { useEffect, useState, Suspense, useCallback } from "react";
 import {
   sendVerificationCode,
   verifyEmailCode,
-  generatePasskeyRegistrationOptions,
-  verifyPasskeyRegistration,
   generatePasskeyAuthOptions,
   verifyPasskeyAuthentication,
 } from "@/app/actions/passkey-auth-actions";
@@ -38,7 +33,6 @@ import { createClient } from "@/lib/supabase/client";
 type LoginStep =
   | "email" // Enter email
   | "verify-code" // Enter OTP code from email
-  | "passkey-setup" // deprecated: use encryption-setup
   | "passkey-signin" // Sign in with existing passkey
   | "passkey-verify" // Verify newly created passkey
   | "encryption-setup"; // Set up encryption with passkey
@@ -62,9 +56,7 @@ function LoginContent() {
 
   // Compute initial step from URL or default to email
   const initialStep: LoginStep =
-    stepParam === "passkey-setup" ||
-    stepParam === "passkey-signin" ||
-    stepParam === "encryption-setup"
+    stepParam === "passkey-signin" || stepParam === "encryption-setup"
       ? stepParam
       : "email";
 
@@ -114,8 +106,7 @@ function LoginContent() {
       // If user is authenticated and we're on passkey or encryption step, stay on that step
       if (
         user &&
-        (step === "passkey-setup" ||
-          step === "passkey-signin" ||
+        (step === "passkey-signin" ||
           step === "passkey-verify" ||
           step === "encryption-setup")
       ) {
@@ -250,69 +241,6 @@ function LoginContent() {
       setIsLoading(false);
     }
   }, [email, resendCooldown]);
-
-  // Handle passkey setup (for new users)
-  const handlePasskeySetup = useCallback(async () => {
-    if (!passkeySupported) {
-      setError("Your browser doesn't support passkeys");
-      return;
-    }
-
-    setError("");
-    setIsLoading(true);
-
-    try {
-      const origin = window.location.origin;
-
-      // Get registration options
-      const optionsResult = await generatePasskeyRegistrationOptions(origin, {
-        isMobile: isMobileDevice(),
-      });
-      if (!optionsResult.success || !optionsResult.data) {
-        setError(optionsResult.error ?? "Failed to start passkey setup");
-        setIsLoading(false);
-        return;
-      }
-
-      // Start WebAuthn registration
-      let regResponse;
-      try {
-        regResponse = await startRegistration({
-          optionsJSON: optionsResult.data,
-        });
-      } catch (err) {
-        if (err instanceof Error) {
-          if (err.name === "NotAllowedError") {
-            setError("Passkey setup was cancelled");
-          } else if (err.name === "AbortError") {
-            setError("Passkey setup timed out");
-          } else {
-            setError("Failed to set up passkey");
-          }
-        } else {
-          setError("Failed to set up passkey");
-        }
-        setIsLoading(false);
-        return;
-      }
-
-      // Verify registration
-      const verifyResult = await verifyPasskeyRegistration(regResponse, origin);
-      if (!verifyResult.success) {
-        setError(verifyResult.error ?? "Failed to complete passkey setup");
-        setIsLoading(false);
-        return;
-      }
-
-      // Passkey created! Now require verification
-      setStep("passkey-verify");
-      setIsLoading(false);
-    } catch (err) {
-      logger.error("Passkey setup error:", err);
-      setError("An unexpected error occurred");
-      setIsLoading(false);
-    }
-  }, [passkeySupported]);
 
   // Handle passkey sign in (for existing users or verification after setup)
   const handlePasskeySignIn = useCallback(async () => {
@@ -476,7 +404,6 @@ function LoginContent() {
               <CardTitle>
                 {step === "email" && "Welcome to Helvety"}
                 {step === "verify-code" && "Check Your Email"}
-                {step === "passkey-setup" && "Set Up Your Passkey"}
                 {step === "passkey-signin" && "Sign In with Passkey"}
                 {step === "passkey-verify" && "Verify Your Passkey"}
               </CardTitle>
@@ -485,8 +412,6 @@ function LoginContent() {
                   "Enter your email to sign in or create an account"}
                 {step === "verify-code" &&
                   `We sent a verification code to ${email}. Check your spam folder if you don\u2019t see it.`}
-                {step === "passkey-setup" &&
-                  "Create a passkey to secure your account"}
                 {step === "passkey-signin" && "Use your passkey to sign in"}
                 {step === "passkey-verify" &&
                   "Verify your new passkey to complete setup"}
@@ -619,57 +544,7 @@ function LoginContent() {
                 </form>
               )}
 
-              {/* Step 3: Passkey setup (new users) */}
-              {step === "passkey-setup" && (
-                <div className="space-y-4">
-                  {!passkeySupported && (
-                    <div className="bg-destructive/10 text-destructive rounded-lg p-3 text-sm">
-                      Your browser doesn&apos;t support passkeys. Please use a
-                      modern browser like Chrome, Safari, or Edge.
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-center py-4">
-                    <div className="bg-primary/10 flex h-16 w-16 items-center justify-center rounded-full">
-                      {isLoading ? (
-                        <Loader2 className="text-primary h-8 w-8 animate-spin" />
-                      ) : (
-                        <KeyRound className="text-primary h-8 w-8" />
-                      )}
-                    </div>
-                  </div>
-
-                  <p className="text-muted-foreground text-center text-sm">
-                    {isLoading
-                      ? isMobile
-                        ? "Use Face ID, fingerprint, or PIN on this device."
-                        : "Scan the QR code with your phone and verify with Face ID, fingerprint, or PIN."
-                      : "A passkey lets you sign in securely using Face ID, fingerprint, or PIN on your device."}
-                  </p>
-
-                  {error && (
-                    <p className="text-destructive text-center text-sm">
-                      {error}
-                    </p>
-                  )}
-
-                  <Button
-                    onClick={handlePasskeySetup}
-                    disabled={isLoading || !passkeySupported}
-                    size="lg"
-                    className="w-full"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <KeyRound className="mr-2 h-4 w-4" />
-                    )}
-                    {isLoading ? "Setting up passkey..." : "Set Up Passkey"}
-                  </Button>
-                </div>
-              )}
-
-              {/* Step 4: Passkey sign in (existing users) */}
+              {/* Step 3: Passkey sign in (existing users) */}
               {step === "passkey-signin" && (
                 <div className="space-y-4">
                   {!passkeySupported && (

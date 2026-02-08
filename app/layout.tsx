@@ -1,11 +1,10 @@
 import { Analytics } from "@vercel/analytics/next";
 import localFont from "next/font/local";
-import { Suspense } from "react";
-
 import "./globals.css";
 
 import { AuthTokenHandler } from "@/components/auth-token-handler";
 import { Footer } from "@/components/footer";
+import { GeoRestrictionDialog } from "@/components/geo-restriction-dialog";
 import { Navbar } from "@/components/navbar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -65,16 +64,13 @@ export const metadata: Metadata = {
     description: "Sign in to your Helvety account",
     images: [
       {
-        url: "/Identifier_whiteBg.png",
+        url: "/helvety_Identifier_whiteBg.svg",
       },
     ],
   },
   icons: {
-    icon: [
-      { url: "/Identifier_whiteBg.png", type: "image/png" },
-      { url: "/Identifier_whiteBg.svg", type: "image/svg+xml" },
-    ],
-    apple: "/Identifier_whiteBg.png",
+    icon: [{ url: "/helvety_Identifier_whiteBg.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/helvety_Identifier_whiteBg.svg", type: "image/svg+xml" }],
   },
   robots: {
     index: false,
@@ -99,25 +95,25 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <EncryptionProvider>
-            <TooltipProvider>
-              <Suspense>
+          <GeoRestrictionDialog>
+            <EncryptionProvider>
+              <TooltipProvider>
                 <AuthTokenHandler />
-              </Suspense>
-              <div className="flex min-h-screen flex-col">
-                <header className="shrink-0">
-                  <Navbar />
-                </header>
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                  <div className="mx-auto w-full max-w-[2000px]">
-                    {children}
+                <div className="flex min-h-screen flex-col">
+                  <header className="shrink-0">
+                    <Navbar />
+                  </header>
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    <div className="mx-auto w-full max-w-[2000px]">
+                      {children}
+                    </div>
                   </div>
+                  <Footer />
                 </div>
-                <Footer />
-              </div>
-              <Toaster />
-            </TooltipProvider>
-          </EncryptionProvider>
+                <Toaster />
+              </TooltipProvider>
+            </EncryptionProvider>
+          </GeoRestrictionDialog>
         </ThemeProvider>
         <Analytics />
       </body>

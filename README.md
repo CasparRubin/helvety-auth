@@ -194,17 +194,15 @@ Stores PRF extension parameters for encryption key derivation:
 
 ```sql
 CREATE TABLE user_passkey_params (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   credential_id TEXT NOT NULL,
   prf_salt TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_id, credential_id)
+  version INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ```
 
-**Note:** The `prf_salt` is used during PRF evaluation to derive the encryption key. The actual encryption key is never stored—it's derived client-side during passkey authentication.
+**Note:** Each user has exactly one passkey params row (keyed by `user_id`). The `prf_salt` is used during PRF evaluation to derive the encryption key. The actual encryption key is never stored—it's derived client-side during passkey authentication.
 
 ## Security Considerations
 
@@ -286,7 +284,7 @@ Browser requirements for encryption:
 
 **Note:** Firefox for Android does not support the PRF extension.
 
-**Legal Pages:** Privacy Policy, Terms of Service, and Impressum are hosted centrally on [helvety.com](https://helvety.com) and linked in the site footer. An informational cookie notice informs visitors that only essential cookies are used (Swiss nDSG / EU ePrivacy compliant).
+**Legal Pages:** Privacy Policy, Terms of Service, and Impressum are hosted centrally on [helvety.com](https://helvety.com) and linked in the site footer. Services are exclusively available to customers in Switzerland and are not offered to EU/EEA residents; a geo-restriction confirmation dialog is displayed once per browser session (cached in sessionStorage; cleared when the tab or browser is closed). Only the Swiss Federal Act on Data Protection (nDSG) applies; the GDPR does not apply. An informational cookie notice informs visitors that only essential cookies are used.
 
 ## Developer
 
